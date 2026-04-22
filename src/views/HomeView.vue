@@ -105,6 +105,11 @@
               </select>
               <button class="btn btn-primary" @click="addPlayer" :disabled="!newName.trim()">+ Thêm</button>
             </div>
+            <div v-if="authStore.user" class="add-me-row" style="margin-top: var(--sp-2)">
+              <button class="btn btn-ghost btn-sm" @click="addMe">
+                👤 Thêm tôi ({{ authStore.user.displayName }})
+              </button>
+            </div>
           </div>
 
           <hr class="divider" />
@@ -192,10 +197,12 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import SkillBadge from '@/components/SkillBadge.vue'
 import { useSessionStore, usePlayerStore, SKILL_LEVELS } from '@/stores/index.js'
+import { useAuthStore } from '@/stores/auth.js'
 
 const router       = useRouter()
 const sessionStore = useSessionStore()
 const playerStore  = usePlayerStore()
+const authStore    = useAuthStore()
 
 const session = computed(() => sessionStore.session)
 
@@ -214,7 +221,11 @@ const form = ref({
 })
 
 function createSession() {
-  sessionStore.createSession(form.value)
+  sessionStore.createSession({
+    ...form.value,
+    hostUid: authStore.user?.uid || null,
+    hostBankInfo: authStore.bankInfo || null
+  })
   showCreate.value = false
   router.push('/live')
 }
@@ -233,6 +244,14 @@ function addPlayer() {
   if (!newName.value.trim()) return
   playerStore.addPlayer({ name: newName.value, skill: newSkill.value })
   newName.value = ''
+}
+
+function addMe() {
+  if (!authStore.user) return
+  playerStore.addPlayer({ 
+    name: authStore.user.displayName, 
+    skill: 'medium' 
+  })
 }
 
 function formatDate(d) {

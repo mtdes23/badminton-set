@@ -1,163 +1,228 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import {
+  collection, doc,
+  onSnapshot,
+  setDoc, updateDoc, deleteDoc, addDoc,
+} from 'firebase/firestore'
+import { db } from '@/firebase.js'
 
 export const SKILL_LEVELS = [
-  { value: 'weak',   label: 'Yếu',    color: '#666',    score: 1 },
-  { value: 'medium', label: 'Trung bình', color: '#FFB800', score: 2 },
-  { value: 'good',   label: 'Khá',    color: '#00C2FF', score: 3 },
-  { value: 'pro',    label: 'Giỏi',   color: '#B5FF1A', score: 4 },
+  { value: 'weak',   label: 'Yếu',        color: '#666',    score: 1 },
+  { value: 'medium', label: 'Trung bình',  color: '#FFB800', score: 2 },
+  { value: 'good',   label: 'Khá',         color: '#00C2FF', score: 3 },
+  { value: 'pro',    label: 'Giỏi',        color: '#B5FF1A', score: 4 },
 ]
 
-let _nextId = 1
-function genId() { return `p${_nextId++}` }
+export const BANK_LIST = [
+  { id: 'vietcombank', name: 'Vietcombank', bin: '970436' },
+  { id: 'mbbank', name: 'MB Bank', bin: '970422' },
+  { id: 'techcombank', name: 'Techcombank', bin: '970407' },
+  { id: 'acb', name: 'ACB', bin: '970416' },
+  { id: 'tpbank', name: 'TPBank', bin: '970423' },
+  { id: 'vpbank', name: 'VPBank', bin: '970432' },
+  { id: 'bidv', name: 'BIDV', bin: '970418' },
+  { id: 'agribank', name: 'Agribank', bin: '970405' },
+  { id: 'viettinbank', name: 'VietinBank', bin: '970415' },
+  { id: 'sacombank', name: 'Sacombank', bin: '970403' },
+  { id: 'momo', name: 'MoMo', bin: 'momo' },
+]
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getInitials(name) {
+  return name.split(' ').slice(-2).map(w => w[0]).join('').toUpperCase()
+}
+
+function buildCourts(count) {
+  return Array.from({ length: count }, (_, i) => ({
+    id:    `court-${i + 1}`,
+    label: `Sân ${i + 1}`,
+    slots: [null, null, null, null],
+  }))
+}
+
+/** Deep-clone via JSON so nested arrays/objects are safe to mutate */
+function clone(obj) {
+  return JSON.parse(JSON.stringify(obj))
+}
+
+// ─── Player Store ─────────────────────────────────────────────────────────────
 
 export const usePlayerStore = defineStore('players', () => {
-  const players = ref(loadFromStorage('bs_players', []))
+  const players = ref([])
+  const loading = ref(true)
 
-  function save() {
-    localStorage.setItem('bs_players', JSON.stringify(players.value))
-  }
+  // Real-time listener — all devices see changes instantly
+  onSnapshot(collection(db, 'players'), (snap) => {
+    players.value = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+    loading.value = false
+  })
 
-  function addPlayer(data) {
-    players.value.push({
-      id:        genId(),
+  async function addPlayer(data) {
+    return await addDoc(collection(db, 'players'), {
       name:      data.name.trim(),
       skill:     data.skill || 'medium',
       phone:     data.phone || '',
-      avatar:    data.avatar || getInitials(data.name),
+      avatar:    getInitials(data.name),
       createdAt: Date.now(),
     })
-    save()
   }
 
-  function updatePlayer(id, data) {
-    const idx = players.value.findIndex(p => p.id === id)
-    if (idx > -1) {
-      players.value[idx] = { ...players.value[idx], ...data }
-      save()
-    }
+  async function updatePlayer(id, data) {
+    await updateDoc(doc(db, 'players', id), data)
   }
 
-  function removePlayer(id) {
-    players.value = players.value.filter(p => p.id !== id)
-    save()
+  async function removePlayer(id) {
+    await deleteDoc(doc(db, 'players', id))
   }
 
   const skillInfo = computed(() => (skill) =>
     SKILL_LEVELS.find(s => s.value === skill) || SKILL_LEVELS[1]
   )
 
-  return { players, addPlayer, updatePlayer, removePlayer, skillInfo }
+  return { players, loading, addPlayer, updatePlayer, removePlayer, skillInfo }
 })
 
-// --- Session Store ---
+// ─── Session Store ────────────────────────────────────────────────────────────
+
+/**
+ * All session state lives in a single Firestore document: app/state
+ * { currentSession: {...} | null, history: [...] }
+ *
+ * onSnapshot keeps every connected device in sync in real-time.
+ */
 export const useSessionStore = defineStore('session', () => {
-  const session = ref(loadFromStorage('bs_session', null))
-  const history = ref(loadFromStorage('bs_history', []))
+  const session = ref(null)
+  const history = ref([])
+  const loading = ref(true)
 
-  function save() {
-    localStorage.setItem('bs_session', JSON.stringify(session.value))
-    localStorage.setItem('bs_history', JSON.stringify(history.value))
-  }
+  const STATE_REF = doc(db, 'app', 'state')
 
-  function createSession(data) {
-    session.value = {
-      id:          `s${Date.now()}`,
-      title:       data.title || 'Buổi giao lưu',
-      venue:       data.venue || '',
-      date:        data.date  || new Date().toISOString().slice(0, 10),
-      startTime:   data.startTime || '08:00',
-      courtCount:  data.courtCount || 3,
-      maxPlayers:  data.maxPlayers || 20,
-      deadline:    data.deadline || null,
-      courts:      buildCourts(data.courtCount || 3),
-      attendees:   [],       // [{ playerId, status:'confirmed'|'absent'|'guest', guestName? }]
-      expenses:    [],       // [{ id, label, amount, paidBy? }]
-      matchLog:    [],       // [{ courtId, players:[ids], startedAt, endedAt? }]
-      status:      'active', // active | closed
-      createdAt:   Date.now(),
-    }
-    save()
-  }
-
-  function endSession() {
-    if (!session.value) return
-    session.value.status = 'closed'
-    session.value.closedAt = Date.now()
-    // archive
-    const archived = { ...session.value }
-    history.value.unshift(archived)
-    if (history.value.length > 30) history.value.pop()
-    session.value = null
-    save()
-  }
-
-  // --- Attendance ---
-  function setAttendance(playerId, status, guestName = '') {
-    if (!session.value) return
-    const existing = session.value.attendees.find(a => a.playerId === playerId)
-    if (existing) {
-      existing.status    = status
-      existing.guestName = guestName
+  // Real-time listener
+  onSnapshot(STATE_REF, (snap) => {
+    if (snap.exists()) {
+      const data = snap.data()
+      session.value = data.currentSession ?? null
+      history.value = data.history ?? []
     } else {
-      session.value.attendees.push({ playerId, status, guestName })
+      session.value = null
+      history.value = []
     }
-    save()
-  }
+    loading.value = false
+  })
 
-  function removeAttendee(playerId) {
-    if (!session.value) return
-    session.value.attendees = session.value.attendees.filter(a => a.playerId !== playerId)
-    save()
-  }
+  // ── Session lifecycle ─────────────────────────────────────────────────────
 
-  // --- Courts / Court Diagram ---
-  function assignPlayerToCourt(courtId, slot, playerId) {
-    if (!session.value) return
-    const court = session.value.courts.find(c => c.id === courtId)
-    if (court) {
-      court.slots[slot] = playerId
-      save()
+  async function createSession(data) {
+    const s = {
+      id:         `s${Date.now()}`,
+      title:      data.title      || 'Buổi giao lưu',
+      venue:      data.venue      || '',
+      date:       data.date       || new Date().toISOString().slice(0, 10),
+      startTime:  data.startTime  || '08:00',
+      courtCount: data.courtCount || 3,
+      maxPlayers: data.maxPlayers || 20,
+      deadline:   data.deadline   || null,
+      courts:     buildCourts(data.courtCount || 3),
+      attendees:  [],
+      expenses:   [],
+      matchLog:   [],
+      status:     'active',
+      hostUid:    data.hostUid    || null,
+      hostBankInfo: data.hostBankInfo || null,
+      createdAt:  Date.now(),
     }
+    await setDoc(STATE_REF, { currentSession: s }, { merge: true })
   }
 
-  function removeFromCourt(courtId, slot) {
+  async function endSession() {
     if (!session.value) return
-    const court = session.value.courts.find(c => c.id === courtId)
-    if (court) {
-      court.slots[slot] = null
-      save()
-    }
+    const closed = { ...clone(session.value), status: 'closed', closedAt: Date.now() }
+    const newHistory = [closed, ...history.value].slice(0, 30)
+    await setDoc(STATE_REF, { currentSession: null, history: newHistory })
   }
 
-  function clearCourt(courtId) {
+  // ── Internal helper: clone → mutate → push ────────────────────────────────
+
+  async function _patch(mutator) {
     if (!session.value) return
-    const court = session.value.courts.find(c => c.id === courtId)
-    if (court) {
-      court.slots = [null, null, null, null]
-      save()
-    }
+    const updated = mutator(clone(session.value))
+    await updateDoc(STATE_REF, { currentSession: updated })
   }
 
-  // --- Expenses ---
-  function addExpense(data) {
-    if (!session.value) return
-    session.value.expenses.push({
-      id:     `e${Date.now()}`,
-      label:  data.label,
-      amount: Number(data.amount),
-      paidBy: data.paidBy || null,
+  // ── Attendance ────────────────────────────────────────────────────────────
+
+  async function setAttendance(playerId, status, guestName = '') {
+    await _patch(s => {
+      const idx = s.attendees.findIndex(a => a.playerId === playerId)
+      if (idx > -1) {
+        s.attendees[idx] = { ...s.attendees[idx], status, guestName }
+      } else {
+        s.attendees.push({ playerId, status, guestName })
+      }
+      return s
     })
-    save()
   }
 
-  function removeExpense(id) {
-    if (!session.value) return
-    session.value.expenses = session.value.expenses.filter(e => e.id !== id)
-    save()
+  async function removeAttendee(playerId) {
+    await _patch(s => {
+      s.attendees = s.attendees.filter(a => a.playerId !== playerId)
+      return s
+    })
   }
 
-  // --- Computed ---
+  // ── Courts ────────────────────────────────────────────────────────────────
+
+  async function assignPlayerToCourt(courtId, slot, playerId) {
+    await _patch(s => {
+      const court = s.courts.find(c => c.id === courtId)
+      if (court) court.slots[slot] = playerId
+      return s
+    })
+  }
+
+  async function removeFromCourt(courtId, slot) {
+    await _patch(s => {
+      const court = s.courts.find(c => c.id === courtId)
+      if (court) court.slots[slot] = null
+      return s
+    })
+  }
+
+  async function clearCourt(courtId) {
+    await _patch(s => {
+      const court = s.courts.find(c => c.id === courtId)
+      if (court) court.slots = [null, null, null, null]
+      return s
+    })
+  }
+
+  // ── Expenses ──────────────────────────────────────────────────────────────
+
+  async function addExpense(data) {
+    await _patch(s => {
+      s.expenses.push({
+        id:     `e${Date.now()}`,
+        label:  data.label,
+        amount: Number(data.amount),
+        paidBy: data.paidBy || null,
+      })
+      return s
+    })
+  }
+
+  async function removeExpense(id) {
+    await _patch(s => {
+      s.expenses = s.expenses.filter(e => e.id !== id)
+      return s
+    })
+  }
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+
   const confirmedCount = computed(() =>
     session.value?.attendees.filter(a => a.status === 'confirmed').length ?? 0
   )
@@ -183,7 +248,7 @@ export const useSessionStore = defineStore('session', () => {
   })
 
   return {
-    session, history,
+    session, history, loading,
     createSession, endSession,
     setAttendance, removeAttendee,
     assignPlayerToCourt, removeFromCourt, clearCourt,
@@ -191,25 +256,3 @@ export const useSessionStore = defineStore('session', () => {
     confirmedCount, totalExpense, perPersonCost, waitingPlayers,
   }
 })
-
-// --- Helpers ---
-function buildCourts(count) {
-  return Array.from({ length: count }, (_, i) => ({
-    id:    `court-${i + 1}`,
-    label: `Sân ${i + 1}`,
-    slots: [null, null, null, null], // 4 positions (2v2)
-  }))
-}
-
-function getInitials(name) {
-  return name.split(' ').slice(-2).map(w => w[0]).join('').toUpperCase()
-}
-
-function loadFromStorage(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : fallback
-  } catch {
-    return fallback
-  }
-}

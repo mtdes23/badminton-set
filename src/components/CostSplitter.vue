@@ -93,41 +93,46 @@
     <div v-if="perPersonCost > 0" class="qr-section">
       <div class="qr-header">
         <div>
-          <div class="label">Thanh toán nhanh qua QR</div>
+          <div class="label">Thanh toán nhanh qua VietQR</div>
           <div class="qr-amount">{{ formatVND(perPersonCost) }} / người</div>
         </div>
-        <div class="qr-banks">
-          <button
-            v-for="bank in QR_BANKS"
-            :key="bank.id"
-            class="bank-btn"
-            :class="{ active: selectedBank === bank.id }"
-            @click="selectedBank = bank.id"
-          >{{ bank.name }}</button>
+      </div>
+      
+      <div v-if="hostBank" class="qr-display-wrap">
+        <div class="qr-image-box">
+          <img :src="qrUrl" class="qr-image" alt="Mã VietQR" />
+        </div>
+        <div class="qr-info">
+          <div class="bank-details">
+            <div class="bank-name">{{ bankName }}</div>
+            <div class="acc-row">
+              <span class="acc-num">{{ hostBank.accountNo }}</span>
+              <button class="btn btn-ghost btn-sm copy-btn" @click="copyAcc"> Sao chép </button>
+            </div>
+            <div class="acc-holder">{{ hostBank.accountName }}</div>
+          </div>
+          <div class="qr-note muted">
+            🏦 Quét mã để chuyển khoản <strong>tự động nhập số tiền & nội dung</strong>.
+          </div>
         </div>
       </div>
-      <div class="qr-canvas-wrap">
-        <canvas ref="qrCanvas" class="qr-canvas" aria-label="Mã QR thanh toán"></canvas>
-        <div class="qr-info">
-          <div class="qr-note muted">
-            🏦 Quét mã QR để chuyển khoản<br />
-            {{ formatVND(perPersonCost) }} cho buổi hôm nay
-          </div>
-          <button class="btn btn-ghost btn-sm" @click="downloadQR">
-            ⬇ Tải QR
-          </button>
-        </div>
+      <div v-else class="qr-empty-state">
+        <p class="muted">Chưa có thông tin ngân hàng của Host để tạo mã QR.</p>
+        <button v-if="authStore.user" class="btn btn-ghost btn-sm" @click="openSettings">
+          Thiết lập ngân hàng của tôi
+        </button>
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import QRCode from 'qrcode'
-import { useSessionStore } from '@/stores/index.js'
+import { ref, computed } from 'vue'
+import { useSessionStore, BANK_LIST } from '@/stores/index.js'
+import { useAuthStore } from '@/stores/auth.js'
 
 const store = useSessionStore()
+const authStore = useAuthStore()
 
 const session        = computed(() => store.session)
 const expenses       = computed(() => session.value?.expenses ?? [])
@@ -137,18 +142,27 @@ const perPersonCost  = computed(() => store.perPersonCost)
 
 const newLabel  = ref('')
 const newAmount = ref(null)
-const qrCanvas  = ref(null)
-const selectedBank = ref('vietqr')
+
+const hostBank = computed(() => session.value?.hostBankInfo)
+
+const bankName = computed(() => {
+  if (!hostBank.value) return ''
+  return BANK_LIST.find(b => b.id === hostBank.value.bankId)?.name || hostBank.value.bankId
+})
+
+const qrUrl = computed(() => {
+  if (!hostBank.value || perPersonCost.value <= 0) return ''
+  const bank = hostBank.value.bankId
+  const acc  = hostBank.value.accountNo
+  const name = encodeURIComponent(hostBank.value.accountName)
+  const desc = encodeURIComponent(`Dong tien cau long ${session.value?.title || ''}`)
+  return `https://img.vietqr.io/image/${bank}-${acc}-compact2.png?amount=${perPersonCost.value}&addInfo=${desc}&accountName=${name}`
+})
 
 const PRESETS = [
   { label: '💡 Tiền sân',  amount: 200000 },
   { label: '🏸 Tiền cầu', amount: 50000  },
   { label: '💧 Nước uống', amount: 30000  },
-]
-
-const QR_BANKS = [
-  { id: 'vietqr', name: 'VietQR' },
-  { id: 'momo',   name: 'MoMo' },
 ]
 
 function addExpense() {
@@ -181,37 +195,16 @@ function expenseIcon(label) {
   return '💰'
 }
 
-async function generateQR() {
-  if (!qrCanvas.value || perPersonCost.value <= 0) return
-  try {
-    const text = `CHUYEN KHOAN: ${formatVND(perPersonCost.value)} - Phi cau long`
-    await QRCode.toCanvas(qrCanvas.value, text, {
-      width: 180,
-      margin: 2,
-      color: { dark: '#000000', light: '#B5FF1A' },
-      errorCorrectionLevel: 'M',
-    })
-  } catch (e) {
-    console.warn('QR error:', e)
-  }
+function copyAcc() {
+  if (!hostBank.value) return
+  navigator.clipboard.writeText(hostBank.value.accountNo)
+  alert('Đã sao chép số tài khoản!')
 }
 
-function downloadQR() {
-  if (!qrCanvas.value) return
-  const link = document.createElement('a')
-  link.download = `badminton-qr-${perPersonCost.value}.png`
-  link.href = qrCanvas.value.toDataURL()
-  link.click()
+function openSettings() {
+  // We don't have direct access to AppNav's modal, but we can instruct the user
+  alert('Vui lòng click vào Avatar (góc trên phải) -> Thiết lập tài khoản để nhập STK của bạn.')
 }
-
-watch(perPersonCost, async () => {
-  await nextTick()
-  generateQR()
-})
-
-onMounted(() => {
-  if (perPersonCost.value > 0) generateQR()
-})
 </script>
 
 <style scoped>
@@ -342,39 +335,58 @@ onMounted(() => {
   font-weight: 700;
   color: var(--c-lime);
 }
-.qr-banks { display: flex; gap: var(--sp-2); }
-.bank-btn {
-  padding: var(--sp-2) var(--sp-4);
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-sm);
-  color: var(--c-text-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--t-fast);
-}
-.bank-btn.active {
-  border-color: var(--c-lime);
-  color: var(--c-lime);
-  background: rgba(181,255,26,0.08);
-}
 
-.qr-canvas-wrap {
+.qr-display-wrap {
   display: flex;
-  align-items: flex-start;
-  gap: var(--sp-5);
+  gap: var(--sp-6);
+  align-items: center;
   flex-wrap: wrap;
 }
-.qr-canvas {
-  border-radius: var(--r-sm);
+.qr-image-box {
+  background: #fff;
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
   flex-shrink: 0;
+  display: flex;
 }
+.qr-image {
+  width: 180px;
+  height: 180px;
+  display: block;
+}
+
 .qr-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  justify-content: center;
+  gap: var(--sp-4);
 }
-.qr-note { font-size: 0.85rem; line-height: 1.8; }
+.bank-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bank-name { font-weight: 700; color: var(--c-text); font-size: 1rem; }
+.acc-row { display: flex; align-items: center; gap: var(--sp-3); }
+.acc-num { 
+  font-family: var(--f-display); 
+  font-size: 1.4rem; 
+  font-weight: 700; 
+  color: var(--c-lime); 
+}
+.acc-holder { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-text-muted); }
+
+.qr-note { font-size: 0.85rem; line-height: 1.6; }
+.qr-note strong { color: var(--c-text); }
+
+.qr-empty-state {
+  text-align: center;
+  padding: var(--sp-8) var(--sp-4);
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+}
 </style>

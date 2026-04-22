@@ -129,14 +129,14 @@ function setStatus(playerId, status) {
 const guestName  = ref('')
 const guestSkill = ref('medium')
 
-function addGuest() {
+async function addGuest() {
   const name = guestName.value.trim()
   if (!name) return
-  // Add to player store temporarily tagged as guest
-  playerStore.addPlayer({ name, skill: guestSkill.value })
-  // Immediately confirm them
-  const newPlayer = playerStore.players[playerStore.players.length - 1]
-  sessionStore.setAttendance(newPlayer.id, 'confirmed')
+  // addPlayer returns the Firestore DocumentRef — grab ID from it
+  const ref = await playerStore.addPlayer({ name, skill: guestSkill.value })
+  if (ref?.id) {
+    await sessionStore.setAttendance(ref.id, 'confirmed')
+  }
   guestName.value = ''
 }
 </script>
