@@ -258,7 +258,11 @@ async function loginGoogle() {
     await authStore.login()
     close()
   } catch (err) {
-    error.value = 'Đăng nhập Google thất bại'
+    if (err.code === 'auth/configuration-not-found') {
+      error.value = 'Google Sign-In chưa được cấu hình trên Firebase Auth'
+    } else {
+      error.value = err.message || 'Đăng nhập Google thất bại'
+    }
   } finally {
     loading.value = false
   }

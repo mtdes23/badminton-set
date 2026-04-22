@@ -1,6 +1,12 @@
 import { initializeApp } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
+import {
+  getAuth,
+  GoogleAuthProvider,
+  connectAuthEmulator,
+  setPersistence,
+  browserLocalPersistence,
+} from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyD4PhECyKV3tfb5F0loNITJumN97VuRGLs',
@@ -16,5 +22,18 @@ export const db = getFirestore(app)
 export const auth = getAuth(app)
 export const googleProvider = new GoogleAuthProvider()
 
-// Enable email/password authentication
-auth.setPersistence = auth.setPersistence || (() => Promise.resolve())
+// Set browser persistence explicitly for email/password auth
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.warn('Could not set auth persistence:', error)
+})
+
+// Connect to emulators only when explicitly enabled
+if (import.meta.env.VITE_FIREBASE_EMULATOR === 'true') {
+  try {
+    connectAuthEmulator(auth, 'http://localhost:9099')
+    connectFirestoreEmulator(db, 'localhost', 8080)
+    console.log('Connected to Firebase emulators')
+  } catch (error) {
+    console.warn('Firebase emulators connection failed:', error)
+  }
+}

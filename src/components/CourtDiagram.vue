@@ -210,9 +210,11 @@ function autoFillCourt(court) {
     .sort((a, b) => b.score - a.score)
 
   // Fill empty slots
-  empties.slice(0, Math.min(empties.length, sorted.length)).forEach((slot, idx) => {
-    sessionStore.assignPlayerToCourt(court.id, slot, sorted[idx].id)
-  })
+  const assignments = empties
+    .slice(0, Math.min(empties.length, sorted.length))
+    .map((slot, idx) => ({ slot, playerId: sorted[idx].id }))
+
+  sessionStore.assignMultiplePlayersToCourt(court.id, assignments)
 }
 </script>
 

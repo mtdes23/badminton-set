@@ -59,24 +59,42 @@ export const usePlayerStore = defineStore('players', () => {
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
     loading.value = false
+  }, (error) => {
+    console.error('Error listening to players:', error)
+    loading.value = false
   })
 
   async function addPlayer(data) {
-    return await addDoc(collection(db, 'players'), {
-      name:      data.name.trim(),
-      skill:     data.skill || 'medium',
-      phone:     data.phone || '',
-      avatar:    getInitials(data.name),
-      createdAt: Date.now(),
-    })
+    try {
+      return await addDoc(collection(db, 'players'), {
+        name:      data.name.trim(),
+        skill:     data.skill || 'medium',
+        phone:     data.phone || '',
+        avatar:    getInitials(data.name),
+        createdAt: Date.now(),
+      })
+    } catch (error) {
+      console.error('Error adding player:', error)
+      throw error
+    }
   }
 
   async function updatePlayer(id, data) {
-    await updateDoc(doc(db, 'players', id), data)
+    try {
+      await updateDoc(doc(db, 'players', id), data)
+    } catch (error) {
+      console.error('Error updating player:', error)
+      throw error
+    }
   }
 
   async function removePlayer(id) {
-    await deleteDoc(doc(db, 'players', id))
+    try {
+      await deleteDoc(doc(db, 'players', id))
+    } catch (error) {
+      console.error('Error removing player:', error)
+      throw error
+    }
   }
 
   const skillInfo = computed(() => (skill) =>
@@ -111,6 +129,9 @@ export const useSessionStore = defineStore('session', () => {
       session.value = null
       history.value = []
     }
+    loading.value = false
+  }, (error) => {
+    console.error('Error listening to session state:', error)
     loading.value = false
   })
 
@@ -149,8 +170,13 @@ export const useSessionStore = defineStore('session', () => {
 
   async function _patch(mutator) {
     if (!session.value) return
-    const updated = mutator(clone(session.value))
-    await updateDoc(STATE_REF, { currentSession: updated })
+    try {
+      const updated = mutator(clone(session.value))
+      await updateDoc(STATE_REF, { currentSession: updated })
+    } catch (error) {
+      console.error('Error updating session:', error)
+      throw error
+    }
   }
 
   // ── Attendance ────────────────────────────────────────────────────────────
@@ -196,6 +222,18 @@ export const useSessionStore = defineStore('session', () => {
     await _patch(s => {
       const court = s.courts.find(c => c.id === courtId)
       if (court) court.slots = [null, null, null, null]
+      return s
+    })
+  }
+
+  async function assignMultiplePlayersToCourt(courtId, assignments) {
+    await _patch(s => {
+      const court = s.courts.find(c => c.id === courtId)
+      if (court) {
+        assignments.forEach(({ slot, playerId }) => {
+          court.slots[slot] = playerId
+        })
+      }
       return s
     })
   }
@@ -279,7 +317,7 @@ export const useSessionStore = defineStore('session', () => {
     session, history, loading,
     createSession, endSession,
     setAttendance, removeAttendee,
-    assignPlayerToCourt, removeFromCourt, clearCourt,
+    assignPlayerToCourt, removeFromCourt, clearCourt, assignMultiplePlayersToCourt,
     addExpense, removeExpense,
     generateShareToken, revokeShareToken, shareUrl,
     confirmedCount, totalExpense, perPersonCost, waitingPlayers,
