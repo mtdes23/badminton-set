@@ -31,7 +31,8 @@
     <div class="nav-auth">
       <template v-if="authStore.user">
         <div class="user-profile" @click="toggleUserMenu" :title="authStore.user.displayName">
-          <img :src="authStore.user.photoURL" :alt="authStore.user.displayName" class="user-avatar" />
+          <img v-if="authStore.user.photoURL" :src="authStore.user.photoURL" :alt="authStore.user.displayName" class="user-avatar" />
+          <div v-else class="user-avatar-fallback">{{ authStore.user.displayName?.charAt(0) || '?' }}</div>
           <div v-if="showUserMenu" class="user-dropdown">
             <div class="dropdown-header">
               <span class="user-name">{{ authStore.user.displayName }}</span>
@@ -46,7 +47,7 @@
           </div>
         </div>
       </template>
-      <button v-else @click="authStore.login" class="btn btn-ghost btn-login" :disabled="authStore.loading">
+      <button v-else @click="showAuthModal = true" class="btn btn-ghost btn-login" :disabled="authStore.loading">
         <span v-if="authStore.loading">...</span>
         <template v-else>
           <span class="btn-icon">🔑</span>
@@ -54,6 +55,9 @@
         </template>
       </button>
     </div>
+
+    <!-- Auth Modal (Login/Signup) -->
+    <AuthModal v-model="showAuthModal" />
 
     <!-- Bank Settings Modal -->
     <Teleport to="body">
@@ -96,6 +100,7 @@ import { ref, computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSessionStore, BANK_LIST } from '@/stores/index.js'
 import { useAuthStore } from '@/stores/auth.js'
+import AuthModal from '@/components/AuthModal.vue'
 
 const router  = useRouter()
 const store   = useSessionStore()
@@ -103,6 +108,7 @@ const authStore = useAuthStore()
 
 const session = computed(() => store.session)
 const showUserMenu = ref(false)
+const showAuthModal = ref(false)
 const showBankModal = ref(false)
 const isSavingBank = ref(false)
 
@@ -268,7 +274,24 @@ const navLinks = [
   border: 2px solid var(--c-border);
   transition: border-color var(--t-fast);
 }
-.user-profile:hover .user-avatar {
+
+.user-avatar-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--c-border);
+  transition: border-color var(--t-fast);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.user-profile:hover .user-avatar,
+.user-profile:hover .user-avatar-fallback {
   border-color: var(--c-lime);
 }
 
