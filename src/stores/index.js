@@ -221,6 +221,34 @@ export const useSessionStore = defineStore('session', () => {
     })
   }
 
+  // ── Share Links ──────────────────────────────────────────────────────────
+
+  async function generateShareToken() {
+    if (!session.value) return null
+    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    await _patch(s => {
+      s.shareToken = token
+      s.shareCreatedAt = Date.now()
+      return s
+    })
+    return token
+  }
+
+  async function revokeShareToken() {
+    if (!session.value) return
+    await _patch(s => {
+      s.shareToken = null
+      delete s.shareToken
+      return s
+    })
+  }
+
+  const shareUrl = computed(() => {
+    if (!session.value?.shareToken) return null
+    const baseUrl = window.location.origin + window.location.pathname.replace('/index.html', '')
+    return `${baseUrl}#/shared/${session.value.shareToken}`
+  })
+
   // ── Computed ──────────────────────────────────────────────────────────────
 
   const confirmedCount = computed(() =>
@@ -253,6 +281,7 @@ export const useSessionStore = defineStore('session', () => {
     setAttendance, removeAttendee,
     assignPlayerToCourt, removeFromCourt, clearCourt,
     addExpense, removeExpense,
+    generateShareToken, revokeShareToken, shareUrl,
     confirmedCount, totalExpense, perPersonCost, waitingPlayers,
   }
 })

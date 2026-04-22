@@ -1,14 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { 
-  signInWithPopup, 
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth'
 import { 
   doc, 
   onSnapshot, 
-  setDoc 
+  setDoc,
+  query,
+  collection,
+  where,
+  getDocs
 } from 'firebase/firestore'
 import { auth, googleProvider, db } from '@/firebase'
 
@@ -56,6 +63,56 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginWithEmail(email, password) {
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password)
+      return result.user
+    } catch (error) {
+      console.error('Email login error:', error)
+      throw error
+    }
+  }
+
+  async function signup(email, password, username) {
+    try {
+      // Check if username exists
+      const usernameQuery = query(
+        collection(db, 'users'),
+        where('username', '==', username.toLowerCase())
+      )
+      const usernameSnapshot = await getDocs(usernameQuery)
+      if (!usernameSnapshot.empty) {
+        throw new Error('Tên đăng nhập đã tồn tại')
+      }
+
+      // Create user
+      const result = await createUserWithEmailAndPassword(auth, email, password)
+      const firebaseUser = result.user
+
+      // Update display name
+      await updateProfile(firebaseUser, {
+        displayName: username,
+      })
+
+      // Save user profile to Firestore
+      const userRef = doc(db, 'users', firebaseUser.uid)
+      await setDoc(userRef, {
+        username: username.toLowerCase(),
+        displayName: username,
+        email: email,
+        createdAt: Date.now(),
+        bankId: '',
+        accountNo: '',
+        accountName: username,
+      }, { merge: true })
+
+      return firebaseUser
+    } catch (error) {
+      console.error('Signup error:', error)
+      throw error
+    }
+  }
+
   async function logout() {
     try {
       await signOut(auth)
@@ -81,6 +138,8 @@ export const useAuthStore = defineStore('auth', () => {
     bankInfo,
     loading,
     login,
+    loginWithEmail,
+    signup,
     logout,
     updateBankInfo,
   }
