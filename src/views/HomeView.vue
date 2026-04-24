@@ -154,37 +154,43 @@
             <button class="btn btn-icon btn-ghost" @click="showCreate = false" aria-label="Đóng">✕</button>
           </div>
           <div class="create-session-form">
-            <div class="input-group">
-              <label for="cs-title-input">Tên buổi đấu</label>
-              <input id="cs-title-input" v-model="form.title" type="text" placeholder="VD: Giao lưu thứ 7 tuần này" />
+            <div v-if="!authStore.user" class="auth-warning">
+              <p>Bạn cần đăng nhập để tạo buổi giao lưu và quản lý dữ liệu riêng của mình.</p>
+              <button class="btn btn-primary" @click="authStore.login">🔑 Đăng nhập ngay</button>
             </div>
-            <div class="input-group">
-              <label for="cs-venue">Địa điểm sân</label>
-              <input id="cs-venue" v-model="form.venue" type="text" placeholder="VD: Sân cầu lông ABC, Q.7" />
-            </div>
-            <div class="form-row-2">
+            <template v-else>
               <div class="input-group">
-                <label for="cs-date">Ngày</label>
-                <input id="cs-date" v-model="form.date" type="date" />
+                <label for="cs-title-input">Tên buổi đấu</label>
+                <input id="cs-title-input" v-model="form.title" type="text" placeholder="VD: Giao lưu thứ 7 tuần này" />
               </div>
               <div class="input-group">
-                <label for="cs-time">Giờ bắt đầu</label>
-                <input id="cs-time" v-model="form.startTime" type="time" />
+                <label for="cs-venue">Địa điểm sân</label>
+                <input id="cs-venue" v-model="form.venue" type="text" placeholder="VD: Sân cầu lông ABC, Q.7" />
               </div>
-            </div>
-            <div class="form-row-2">
-              <div class="input-group">
-                <label for="cs-courts">Số sân</label>
-                <input id="cs-courts" v-model.number="form.courtCount" type="number" min="1" max="10" />
+              <div class="form-row-2">
+                <div class="input-group">
+                  <label for="cs-date">Ngày</label>
+                  <input id="cs-date" v-model="form.date" type="date" />
+                </div>
+                <div class="input-group">
+                  <label for="cs-time">Giờ bắt đầu</label>
+                  <input id="cs-time" v-model="form.startTime" type="time" />
+                </div>
               </div>
-              <div class="input-group">
-                <label for="cs-max">Tối đa người</label>
-                <input id="cs-max" v-model.number="form.maxPlayers" type="number" min="4" max="100" />
+              <div class="form-row-2">
+                <div class="input-group">
+                  <label for="cs-courts">Số sân</label>
+                  <input id="cs-courts" v-model.number="form.courtCount" type="number" min="1" max="10" />
+                </div>
+                <div class="input-group">
+                  <label for="cs-max">Tối đa người</label>
+                  <input id="cs-max" v-model.number="form.maxPlayers" type="number" min="4" max="100" />
+                </div>
               </div>
-            </div>
-            <button class="btn btn-primary btn-lg" style="width:100%;margin-top:var(--sp-4)" @click="createSession" id="btn-confirm-create">
-              🏸 Bắt đầu buổi giao lưu
-            </button>
+              <button class="btn btn-primary btn-lg" style="width:100%;margin-top:var(--sp-4)" @click="createSession" id="btn-confirm-create">
+                🏸 Bắt đầu buổi giao lưu
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -429,6 +435,22 @@ const FEATURES = [
 /* Create session form */
 .create-session-form { display: flex; flex-direction: column; gap: var(--sp-4); }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+
+.auth-warning {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  text-align: center;
+  background: rgba(181, 255, 26, 0.05);
+  border: 1px dashed var(--c-lime);
+  border-radius: var(--r-md);
+}
+.auth-warning p {
+  font-size: 0.9rem;
+  color: var(--c-text-muted);
+}
 
 @media (max-width: 640px) {
   .home-view { padding: 0 var(--sp-4) var(--sp-12); gap: var(--sp-10); }

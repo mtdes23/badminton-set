@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   collection, doc,
   onSnapshot,
@@ -106,64 +106,97 @@ export const usePlayerStore = defineStore('players', () => {
 
 // ─── Session Store ────────────────────────────────────────────────────────────
 
+import { useAuthStore } from '@/stores/auth.js'
+
 /**
- * All session state lives in a single Firestore document: app/state
- * { currentSession: {...} | null, history: [...] }
+ * Session state logic: Each user has their own session doc at sessions/{uid}.
  *
  * onSnapshot keeps every connected device in sync in real-time.
  */
 export const useSessionStore = defineStore('session', () => {
+  const authStore = useAuthStore()
+  
   const session = ref(null)
   const history = ref([])
   const loading = ref(true)
+  const shareToken = ref(null)
 
-  const STATE_REF = doc(db, 'app', 'state')
+  let unsub = null
 
-  // Real-time listener
-  onSnapshot(STATE_REF, (snap) => {
-    if (snap.exists()) {
-      const data = snap.data()
-      session.value = data.currentSession ?? null
-      history.value = data.history ?? []
-    } else {
-      session.value = null
-      history.value = []
-    }
-    loading.value = false
-  }, (error) => {
-    console.error('Error listening to session state:', error)
-    loading.value = false
+  // Function to bind listener to a specific path
+  function bindSessionListener(uid) {
+    if (unsub) unsub()
+    
+    loading.value = true
+    const path = uid ? `sessions/${uid}` : 'app/state' // Fallback for legacy or anonymous
+    const refDoc = doc(db, path)
+    
+    unsub = onSnapshot(refDoc, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        session.value = data.currentSession ?? null
+        history.value = data.history ?? []
+        shareToken.value = data.shareToken ?? null
+      } else {
+        session.value = null
+        history.value = []
+        shareToken.value = null
+      }
+      loading.value = false
+    }, (err) => {
+      console.error('Session listener error:', err)
+      loading.value = false
+    })
+  }
+
+  // Bind listener when store initializes
+  bindSessionListener(authStore.user?.uid)
+
+  // Helper to get the correct document reference for writing
+  const stateRef = computed(() => {
+    const uid = authStore.user?.uid
+    return uid ? doc(db, 'sessions', uid) : doc(db, 'app', 'state')
   })
 
   // ── Session lifecycle ─────────────────────────────────────────────────────
 
   async function createSession(data) {
-    const s = {
-      id:         `s${Date.now()}`,
-      title:      data.title      || 'Buổi giao lưu',
-      venue:      data.venue      || '',
-      date:       data.date       || new Date().toISOString().slice(0, 10),
-      startTime:  data.startTime  || '08:00',
-      courtCount: data.courtCount || 3,
-      maxPlayers: data.maxPlayers || 20,
-      deadline:   data.deadline   || null,
-      courts:     buildCourts(data.courtCount || 3),
-      attendees:  [],
-      expenses:   [],
-      matchLog:   [],
-      status:     'active',
-      hostUid:    data.hostUid    || null,
-      hostBankInfo: data.hostBankInfo || null,
-      createdAt:  Date.now(),
+    try {
+      const s = {
+        id:         `s${Date.now()}`,
+        title:      data.title      || 'Buổi giao lưu',
+        venue:      data.venue      || '',
+        date:       data.date       || new Date().toISOString().slice(0, 10),
+        startTime:  data.startTime  || '08:00',
+        courtCount: data.courtCount || 3,
+        maxPlayers: data.maxPlayers || 20,
+        deadline:   data.deadline   || null,
+        courts:     buildCourts(data.courtCount || 3),
+        attendees:  [],
+        expenses:   [],
+        matchLog:   [],
+        status:     'active',
+        hostUid:    authStore.user?.uid || null,
+        hostBankInfo: authStore.bankInfo || null,
+        createdAt:  Date.now(),
+      }
+      await setDoc(stateRef.value, { currentSession: s }, { merge: true })
+    } catch (error) {
+      console.error('Error creating session:', error)
+      throw error
     }
-    await setDoc(STATE_REF, { currentSession: s }, { merge: true })
   }
 
   async function endSession() {
     if (!session.value) return
-    const closed = { ...clone(session.value), status: 'closed', closedAt: Date.now() }
-    const newHistory = [closed, ...history.value].slice(0, 30)
-    await setDoc(STATE_REF, { currentSession: null, history: newHistory })
+    try {
+      const closed = { ...clone(session.value), status: 'closed', closedAt: Date.now() }
+      const newHistory = [closed, ...history.value].slice(0, 30)
+      await setDoc(stateRef.value, { currentSession: null, history: newHistory })
+    } catch (error) {
+      console.error('Error ending session:', error)
+      throw error
+    }
   }
 
   // ── Internal helper: clone → mutate → push ────────────────────────────────
@@ -172,9 +205,9 @@ export const useSessionStore = defineStore('session', () => {
     if (!session.value) return
     try {
       const updated = mutator(clone(session.value))
-      await updateDoc(STATE_REF, { currentSession: updated })
+      await updateDoc(stateRef.value, { currentSession: updated })
     } catch (error) {
-      console.error('Error updating session:', error)
+      console.error('Error patching session:', error)
       throw error
     }
   }
@@ -259,32 +292,52 @@ export const useSessionStore = defineStore('session', () => {
     })
   }
 
+  // Re-bind when user changes (login/logout)
+  watch(() => authStore.user?.uid, (newUid) => {
+    bindSessionListener(newUid)
+  })
+
   // ── Share Links ──────────────────────────────────────────────────────────
 
   async function generateShareToken() {
     if (!session.value) return null
-    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-    await _patch(s => {
-      s.shareToken = token
-      s.shareCreatedAt = Date.now()
-      return s
-    })
-    return token
+    try {
+      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+      
+      // Save share token in the user's specific session document
+      await updateDoc(stateRef.value, { 
+        shareToken: token,
+        shareCreatedAt: Date.now(),
+      })
+      
+      return token
+    } catch (error) {
+      console.error('Error generating share token:', error)
+      throw error
+    }
   }
 
   async function revokeShareToken() {
     if (!session.value) return
-    await _patch(s => {
-      s.shareToken = null
-      delete s.shareToken
-      return s
-    })
+    try {
+      // Remove share token
+      await updateDoc(stateRef.value, { 
+        shareToken: null,
+        shareCreatedAt: null,
+      })
+    } catch (error) {
+      console.error('Error revoking share token:', error)
+      throw error
+    }
   }
 
   const shareUrl = computed(() => {
-    if (!session.value?.shareToken) return null
-    const baseUrl = window.location.origin + window.location.pathname.replace('/index.html', '')
-    return `${baseUrl}#/shared/${session.value.shareToken}`
+    if (!session.value || !shareToken.value || !authStore.user?.uid) return null
+    // Robust way to get the base URL for hash routing
+    const baseUrl = window.location.origin + window.location.pathname
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl : baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1)
+    // Include UID in the link so SharedView knows which document to read
+    return `${cleanBase}#/shared/${authStore.user.uid}/${shareToken.value}`
   })
 
   // ── Computed ──────────────────────────────────────────────────────────────
@@ -314,12 +367,13 @@ export const useSessionStore = defineStore('session', () => {
   })
 
   return {
-    session, history, loading,
+    session, history, loading, shareToken,
     createSession, endSession,
     setAttendance, removeAttendee,
     assignPlayerToCourt, removeFromCourt, clearCourt, assignMultiplePlayersToCourt,
     addExpense, removeExpense,
     generateShareToken, revokeShareToken, shareUrl,
     confirmedCount, totalExpense, perPersonCost, waitingPlayers,
+    bindSessionListener, // Expose for manual calls if needed
   }
 })

@@ -43,7 +43,7 @@
         </div>
         <div class="live-header-share">
           <button 
-            v-if="!session.shareToken" 
+            v-if="!store.shareToken" 
             @click="showShareModal = true"
             class="btn btn-primary btn-sm"
             title="Tạo link để chia sẻ"
@@ -72,7 +72,7 @@
               <button class="btn btn-icon btn-ghost" @click="showShareModal = false" aria-label="Đóng">✕</button>
             </div>
 
-            <div v-if="!session.shareToken" class="share-content">
+            <div v-if="!store.shareToken" class="share-content">
               <p class="modal-desc muted">Tạo một link để những người khác có thể xem trực tiếp sơ đồ sân, danh sách điểm danh và chi phí (chỉ xem, không chỉnh sửa).</p>
               <button @click="generateShare" class="btn btn-primary btn-lg" :disabled="generatingShare">
                 {{ generatingShare ? 'Đang tạo...' : '🔗 Tạo link chia sẻ' }}
@@ -220,7 +220,11 @@ const TABS = computed(() => [
 async function generateShare() {
   generatingShare.value = true
   try {
-    await store.generateShareToken()
+    console.log('Generating share token...')
+    const token = await store.generateShareToken()
+    console.log('Generated token:', token)
+    console.log('Current session after generation:', store.session)
+    console.log('Share URL:', store.shareUrl)
   } catch (error) {
     console.error('Error generating share token:', error)
     alert('Lỗi khi tạo link chia sẻ')
@@ -243,13 +247,25 @@ async function revokeShare() {
   }
 }
 
-function copyShareLink() {
-  const input = document.getElementById('share-url-input')
-  if (input) {
-    input.select()
-    document.execCommand('copy')
+async function copyShareLink() {
+  const url = store.shareUrl
+  if (!url) return
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url)
+    } else {
+      // Fallback for older browsers
+      const input = document.getElementById('share-url-input')
+      if (input) {
+        input.select()
+        document.execCommand('copy')
+      }
+    }
     copiedLink.value = true
     setTimeout(() => { copiedLink.value = false }, 2000)
+  } catch (err) {
+    console.error('Failed to copy link:', err)
   }
 }
 

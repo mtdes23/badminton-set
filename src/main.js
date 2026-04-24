@@ -16,7 +16,7 @@ const router = createRouter({
     { path: '/',             name: 'home',       component: HomeView },
     { path: '/live',         name: 'live',       component: LiveView },
     { path: '/history',      name: 'history',    component: HistoryView },
-    { path: '/shared/:token', name: 'shared',    component: SharedLiveView },
+    { path: '/shared/:uid/:token', name: 'shared',    component: SharedLiveView },
   ],
   scrollBehavior: () => ({ top: 0 })
 })

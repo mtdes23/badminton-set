@@ -162,9 +162,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { usePlayerStore } from '@/stores/index.js'
 import SkillBadge from '@/components/SkillBadge.vue'
@@ -176,27 +176,46 @@ const loading = ref(true)
 const sessionData = ref(null)
 const activeTab = ref('attendance')
 
+const shareUid = route.params.uid
 const shareToken = route.params.token
 
 // Load session data by share token
-onMounted(async () => {
-  try {
-    const appStateRef = doc(db, 'app', 'state')
-    const appSnap = await getDoc(appStateRef)
-    
-    if (appSnap.exists()) {
-      const data = appSnap.data()
-      const session = data.currentSession
-      
-      if (session && session.shareToken === shareToken) {
-        sessionData.value = session
-      }
-    }
-  } catch (error) {
-    console.error('Error loading shared session:', error)
-  } finally {
+let unsub = null
+onMounted(() => {
+  console.log('Loading shared session for user:', shareUid, 'with token:', shareToken)
+  if (!shareUid || !shareToken) {
     loading.value = false
+    return
   }
+  
+  const hostSessionRef = doc(db, 'sessions', shareUid)
+  
+  // Real-time listener for shared view
+  unsub = onSnapshot(hostSessionRef, (snap) => {
+    if (snap.exists()) {
+      const data = snap.data()
+      const session = data.currentSession
+      const tokenInDb = data.shareToken
+      
+      if (session && tokenInDb === shareToken) {
+        console.log('Shared session updated real-time')
+        sessionData.value = session
+      } else {
+        console.warn('Shared session not found or token mismatch')
+        sessionData.value = null
+      }
+    } else {
+      sessionData.value = null
+    }
+    loading.value = false
+  }, (error) => {
+    console.error('Error listening to shared session:', error)
+    loading.value = false
+  })
+})
+
+onUnmounted(() => {
+  if (unsub) unsub()
 })
 
 const playerMap = computed(() => {
