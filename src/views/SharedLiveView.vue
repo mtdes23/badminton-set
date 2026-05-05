@@ -97,6 +97,27 @@
             <div v-if="!attendeeDetails.length" class="muted" style="text-align: center; padding: var(--sp-6)">
               Chưa có người điểm danh
             </div>
+            
+            <div class="self-attend-box">
+              <h4>Bạn có mặt ở sân?</h4>
+              <p class="muted" style="margin-bottom: var(--sp-3); font-size: 0.85rem">Chọn tên của bạn để báo có mặt với quản lý</p>
+              
+              <div class="self-attend-form" v-if="!selfAttendSuccess">
+                <select v-model="selectedPlayerId" class="player-select" aria-label="Chọn tên bạn">
+                  <option value="">-- Chọn tên của bạn --</option>
+                  <option v-for="p in allPlayers" :key="p.id" :value="p.id">{{ p.name }}</option>
+                </select>
+                <button class="btn btn-primary" @click="submitAttendance" :disabled="!selectedPlayerId || isSubmitting">
+                  {{ isSubmitting ? 'Đang gửi...' : 'Báo có mặt' }}
+                </button>
+              </div>
+              <div v-else class="success-message">
+                ✅ Đã gửi! Hệ thống của quản lý sẽ tự động thêm bạn vào danh sách. (Bạn có thể cần xin link mới để thấy tên mình cập nhật).
+              </div>
+              <div v-if="selfAttendError" class="error-text" style="color: var(--c-red); font-size: 0.85rem; margin-top: var(--sp-2)">
+                {{ selfAttendError }}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -164,7 +185,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { doc, onSnapshot } from 'firebase/firestore'
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { usePlayerStore } from '@/stores/index.js'
 import SkillBadge from '@/components/SkillBadge.vue'
@@ -252,12 +273,44 @@ const perPersonCost = computed(() => {
   return Math.ceil(totalExpense.value / confirmedCount.value)
 })
 
-const attendeeDetails = computed(() =>
-  sessionData.value?.attendees
-    .filter(a => a.status === 'confirmed')
-    .map(a => playerMap.value[a.playerId])
-    .filter(Boolean) ?? []
-)
+const allPlayers = computed(() => playerStore.players)
+const attendeeDetails = computed(() => {
+  if (!sessionData.value?.attendees) return []
+  return sessionData.value.attendees.map(a => {
+    const p = playerMap.value[a.playerId]
+    return {
+      playerId: a.playerId,
+      name: p?.name || 'Khách',
+      avatar: p?.avatar || '?',
+      skill: p?.skill || 'medium',
+      status: a.status
+    }
+  })
+})
+
+// ── Self Attendance ─────────────────────────────────────────────────────────
+const selectedPlayerId = ref('')
+const isSubmitting = ref(false)
+const selfAttendSuccess = ref(false)
+const selfAttendError = ref('')
+
+async function submitAttendance() {
+  if (!selectedPlayerId.value || !sessionData.value) return
+  isSubmitting.value = true
+  selfAttendError.value = ''
+  try {
+    // Write flag to the public players collection so the host can process it
+    await updateDoc(doc(db, 'players', selectedPlayerId.value), {
+      attending_session: sessionData.value.id
+    })
+    selfAttendSuccess.value = true
+  } catch (error) {
+    console.error('Error submitting attendance:', error)
+    selfAttendError.value = 'Lỗi gửi yêu cầu: Hệ thống từ chối quyền hoặc lỗi mạng.'
+  } finally {
+    isSubmitting.value = false
+  }
+}
 
 const TABS = computed(() => [
   { id: 'attendance', icon: '📋', label: 'Điểm danh', badge: confirmedCount.value || null },
@@ -645,6 +698,39 @@ function formatVNDShort(n) {
 }
 
 .muted {
-  color: var(--c-text-secondary);
+  color: var(--c-text-muted);
+}
+
+.self-attend-box {
+  margin-top: var(--sp-6);
+  padding: var(--sp-4);
+  background: var(--c-surface);
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.self-attend-form {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.player-select {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.5rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.success-message {
+  color: var(--c-lime);
+  font-weight: 500;
+  padding: var(--sp-3);
+  background: rgba(181, 255, 26, 0.1);
+  border-radius: var(--r-sm);
+  margin-top: var(--sp-2);
 }
 </style>

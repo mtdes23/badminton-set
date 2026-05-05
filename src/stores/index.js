@@ -223,6 +223,55 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  // ── Auto-process Self-Attendance Requests ─────────────────────────────────
+  
+  let playerStoreInstance = null
+  watch(() => {
+    if (!playerStoreInstance) {
+      playerStoreInstance = usePlayerStore()
+    }
+    return playerStoreInstance.players
+  }, async (newPlayers) => {
+    if (!session.value || !authStore.user || !newPlayers || newPlayers.length === 0) return
+    // Only process requests if we are the host of the active session
+    if (session.value.hostUid !== authStore.user.uid) return
+    
+    const sessionId = session.value.id
+    const playersToProcess = newPlayers.filter(p => p.attending_session === sessionId)
+    
+    if (playersToProcess.length > 0) {
+      console.log('Processing self-attendance for:', playersToProcess.map(p => p.name))
+      
+      await _patch(s => {
+        playersToProcess.forEach(player => {
+          const attendee = s.attendees.find(a => a.playerId === player.id)
+          if (attendee) {
+            attendee.status = 'confirmed'
+          } else {
+            s.attendees.push({
+              playerId: player.id,
+              status: 'confirmed',
+              type: 'guest',
+              payment: 0
+            })
+          }
+        })
+        return s
+      })
+      
+      // Clear flags from players collection to acknowledge
+      for (const player of playersToProcess) {
+        try {
+          await updateDoc(doc(db, 'players', player.id), {
+            attending_session: null
+          })
+        } catch (e) {
+          console.error('Error clearing attendance flag:', e)
+        }
+      }
+    }
+  }, { deep: true })
+
   // ── Attendance ────────────────────────────────────────────────────────────
 
   async function setAttendance(playerId, status, guestName = '') {
