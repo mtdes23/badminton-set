@@ -8,7 +8,7 @@
 
     <div v-else-if="!sessionData" class="error-state">
       <div class="error-icon">🔒</div>
-      <h2>Link không tồn tại hoặc đã hết hạn</h2>
+      <h2>{{ eMsg || 'Link không tồn tại hoặc đã hết hạn' }}</h2>
       <p class="muted">Vui lòng yêu cầu link mới từ người quản lý buổi giao lưu.</p>
       <RouterLink to="/" class="btn btn-primary">← Quay lại trang chủ</RouterLink>
     </div>
@@ -176,8 +176,10 @@ const loading = ref(true)
 const sessionData = ref(null)
 const activeTab = ref('attendance')
 
-const shareUid = route.params.uid
-const shareToken = route.params.token
+const shareUid = route.params.uid?.trim().replace(/\/$/, '')
+const shareToken = route.params.token?.trim().replace(/\/$/, '')
+
+const eMsg = ref('')
 
 // Load session data by share token
 let unsub = null
@@ -186,15 +188,15 @@ let timeoutId = null
 onMounted(() => {
   console.log('🔍 SharedLiveView: Loading for user:', shareUid, 'with token:', shareToken)
   if (!shareUid || !shareToken) {
-    console.error('❌ Missing UID or Token in URL')
+    eMsg.value = 'URL không hợp lệ (thiếu thông tin ID hoặc Token).'
     loading.value = false
     return
   }
   
-  // Safety timeout: If Firebase takes more than 5s, hide loading to show error
+  // Safety timeout
   timeoutId = setTimeout(() => {
     if (loading.value) {
-      console.warn('⚠️ Timeout: Firestore took too long to respond')
+      eMsg.value = 'Hệ thống phản hồi quá lâu. Vui lòng kiểm tra kết nối mạng và thử lại.'
       loading.value = false
     }
   }, 5000)
@@ -204,36 +206,40 @@ onMounted(() => {
   
   // Real-time listener for shared view
   unsub = onSnapshot(hostSessionRef, (snap) => {
-    console.log(`📡 Snapshot received from ${path}. Exists:`, snap.exists())
+    if (timeoutId) clearTimeout(timeoutId)
     
     if (snap.exists()) {
       const data = snap.data()
       const session = data.currentSession
       const tokenInDb = data.shareToken
       
-      console.log('📄 Data from DB:', { 
-        hasSession: !!session, 
-        tokenMatch: tokenInDb === shareToken,
-        dbToken: tokenInDb 
-      })
-
-      if (session && tokenInDb === shareToken) {
-        console.log('✅ Session found and token matches!')
-        sessionData.value = session
-      } else {
-        console.warn('⚠️ Session not found or token mismatch')
+      if (!session) {
+        eMsg.value = 'Buổi giao lưu này đã kết thúc hoặc chưa được tạo.'
         sessionData.value = null
+      } else if (tokenInDb !== shareToken) {
+        eMsg.value = 'Link chia sẻ đã bị thu hồi hoặc đã được tạo mới. Vui lòng xin link mới.'
+        sessionData.value = null
+      } else {
+        // Success
+        eMsg.value = ''
+        sessionData.value = session
       }
     } else {
-      console.warn('❌ Document does not exist at path:', path)
+      eMsg.value = 'Không tìm thấy dữ liệu máy chủ cho người quản lý này.'
       sessionData.value = null
     }
     
-    if (timeoutId) clearTimeout(timeoutId)
     loading.value = false
   }, (error) => {
     console.error('🔥 Firestore Error:', error)
     if (timeoutId) clearTimeout(timeoutId)
+    
+    if (error.code === 'permission-denied') {
+      eMsg.value = 'Lỗi phân quyền: Hệ thống không cho phép xem dữ liệu này (người quản lý có thể đã thay đổi cài đặt).'
+    } else {
+      eMsg.value = `Lỗi hệ thống: ${error.message}`
+    }
+    sessionData.value = null
     loading.value = false
   })
 })
