@@ -60,6 +60,15 @@
             :aria-label="`${player.name} báo vắng`"
             title="Vắng mặt"
           >✗</button>
+          <!-- Delete Player from System (Host only) -->
+          <button
+            v-if="!isGuest"
+            class="btn btn-sm ar-btn btn-ghost"
+            style="color: var(--c-red); font-size: 1.1rem; padding: 0 4px;"
+            @click="deletePlayer(player)"
+            :aria-label="`Xóa ${player.name} khỏi hệ thống`"
+            title="Xóa vĩnh viễn khỏi danh sách"
+          >🗑</button>
         </div>
       </div>
     </div>
@@ -90,14 +99,23 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import SkillBadge from './SkillBadge.vue'
 import { useSessionStore, usePlayerStore, SKILL_LEVELS } from '@/stores/index.js'
 
+const route        = useRoute()
 const sessionStore = useSessionStore()
 const playerStore  = usePlayerStore()
 
 const session       = computed(() => sessionStore.session)
 const confirmedCount = computed(() => sessionStore.confirmedCount)
+const isGuest       = computed(() => route.name === 'shared')
+
+function deletePlayer(player) {
+  if (confirm(`Bạn có chắc muốn xóa vĩnh viễn "${player.name}" khỏi hệ thống không?`)) {
+    playerStore.removePlayer(player.id)
+  }
+}
 const absentCount    = computed(() =>
   session.value?.attendees.filter(a => a.status === 'absent').length ?? 0
 )
