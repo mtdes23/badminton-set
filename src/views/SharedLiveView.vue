@@ -182,68 +182,43 @@ const shareToken = route.params.token?.trim().replace(/\/$/, '')
 const eMsg = ref('')
 
 // Load session data by share token
-let unsub = null
 let timeoutId = null
 
 onMounted(() => {
-  console.log('🔍 SharedLiveView: Loading for user:', shareUid, 'with token:', shareToken)
   if (!shareUid || !shareToken) {
     eMsg.value = 'URL không hợp lệ (thiếu thông tin ID hoặc Token).'
     loading.value = false
     return
   }
   
-  // Safety timeout
-  timeoutId = setTimeout(() => {
-    if (loading.value) {
-      eMsg.value = 'Hệ thống phản hồi quá lâu. Vui lòng kiểm tra kết nối mạng và thử lại.'
+  if (shareUid === 'static') {
+    try {
+      // Decode the URL encoded base64 token
+      const b64 = decodeURIComponent(shareToken)
+      // Decode from base64 (UTF-8 safe)
+      const jsonStr = decodeURIComponent(escape(atob(b64)))
+      const session = JSON.parse(jsonStr)
+      
+      sessionData.value = session
+      eMsg.value = ''
+      loading.value = false
+    } catch (error) {
+      console.error('Lỗi khi giải mã link tĩnh:', error)
+      eMsg.value = 'Link tĩnh không hợp lệ hoặc dữ liệu bị lỗi định dạng.'
+      sessionData.value = null
       loading.value = false
     }
-  }, 5000)
+    return
+  }
   
-  // Bypass strict rules using the public mirror in app/state's sharedSessions map
-  const path = `app/state`
-  const hostSessionRef = doc(db, path)
-  
-  // Real-time listener for shared view
-  unsub = onSnapshot(hostSessionRef, (snap) => {
-    if (timeoutId) clearTimeout(timeoutId)
-    
-    if (snap.exists()) {
-      const data = snap.data()
-      const session = data?.sharedSessions?.[shareToken]
-      
-      if (!session) {
-        eMsg.value = 'Buổi giao lưu này đã kết thúc hoặc chưa được tạo.'
-        sessionData.value = null
-      } else {
-        // Success
-        eMsg.value = ''
-        sessionData.value = session
-      }
-    } else {
-      eMsg.value = 'Không tìm thấy dữ liệu máy chủ (có thể link bị sai hoặc buổi đã kết thúc).'
-      sessionData.value = null
-    }
-    
-    loading.value = false
-  }, (error) => {
-    console.error('🔥 Firestore Error:', error)
-    if (timeoutId) clearTimeout(timeoutId)
-    
-    if (error.code === 'permission-denied') {
-      eMsg.value = 'Lỗi phân quyền: Hệ thống không cho phép xem dữ liệu này (người quản lý có thể đã thay đổi cài đặt).'
-    } else {
-      eMsg.value = `Lỗi hệ thống: ${error.message}`
-    }
-    sessionData.value = null
-    loading.value = false
-  })
+  // Legacy links fallback
+  eMsg.value = 'Link chia sẻ cũ này không còn được hỗ trợ. Vui lòng xin link tĩnh mới từ người quản lý.'
+  sessionData.value = null
+  loading.value = false
 })
 
 onUnmounted(() => {
   if (timeoutId) clearTimeout(timeoutId)
-  if (unsub) unsub()
 })
 
 const playerMap = computed(() => {

@@ -217,15 +217,6 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const updated = mutator(clone(session.value))
       await updateDoc(stateRef.value, { currentSession: updated })
-      
-      // Mirror to public app/state document if sharing is active
-      if (shareToken.value) {
-        await setDoc(doc(db, 'app', 'state'), {
-          sharedSessions: {
-            [shareToken.value]: updated
-          }
-        }, { merge: true }).catch(err => console.warn('Public mirror sync failed:', err))
-      }
     } catch (error) {
       console.error('Error patching session:', error)
       throw error
@@ -322,19 +313,12 @@ export const useSessionStore = defineStore('session', () => {
   async function generateShareToken() {
     if (!session.value) return null
     try {
-      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+      const token = 'static-' + Math.random().toString(36).substring(2, 10)
       
-      // Save share token in the user's specific session document
+      // Save share token in the user's specific session document just to trigger the UI
       await setDoc(stateRef.value, { 
         shareToken: token,
         shareCreatedAt: Date.now(),
-      }, { merge: true })
-      
-      // Create public mirror in app/state to bypass strict rules
-      await setDoc(doc(db, 'app', 'state'), {
-        sharedSessions: {
-          [token]: session.value
-        }
       }, { merge: true })
       
       return token
@@ -347,21 +331,11 @@ export const useSessionStore = defineStore('session', () => {
   async function revokeShareToken() {
     if (!session.value) return
     try {
-      const currentToken = shareToken.value
       // Remove share token
       await setDoc(stateRef.value, { 
         shareToken: null,
         shareCreatedAt: null,
       }, { merge: true })
-      
-      // Delete public mirror
-      if (currentToken) {
-        await setDoc(doc(db, 'app', 'state'), {
-          sharedSessions: {
-            [currentToken]: null
-          }
-        }, { merge: true }).catch(() => {})
-      }
     } catch (error) {
       console.error('Error revoking share token:', error)
       throw error
@@ -371,18 +345,24 @@ export const useSessionStore = defineStore('session', () => {
   const shareUrl = computed(() => {
     if (!session.value || !shareToken.value) return null
     
-    const uid = authStore.user?.uid || 'app'
-    
-    // Robust way to get the base URL for hash routing without stripping subpaths
-    let baseUrl = window.location.origin + window.location.pathname
-    if (baseUrl.endsWith('/index.html')) {
-      baseUrl = baseUrl.replace('/index.html', '/')
-    } else if (!baseUrl.endsWith('/')) {
-      baseUrl += '/'
+    // Static mode: encode session data into the URL directly
+    try {
+      const jsonStr = JSON.stringify(session.value)
+      // UTF-8 safe base64 encoding
+      const b64 = btoa(unescape(encodeURIComponent(jsonStr)))
+      
+      let baseUrl = window.location.origin + window.location.pathname
+      if (baseUrl.endsWith('/index.html')) {
+        baseUrl = baseUrl.replace('/index.html', '/')
+      } else if (!baseUrl.endsWith('/')) {
+        baseUrl += '/'
+      }
+      
+      return `${baseUrl}#/shared/static/${encodeURIComponent(b64)}`
+    } catch (error) {
+      console.error('Error generating static URL:', error)
+      return null
     }
-    
-    // Include UID in the link so SharedView knows which document to read
-    return `${baseUrl}#/shared/${uid}/${shareToken.value}`
   })
 
   // ── Computed ──────────────────────────────────────────────────────────────
