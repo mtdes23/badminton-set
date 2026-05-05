@@ -196,7 +196,11 @@ export const useSessionStore = defineStore('session', () => {
       
       // Clear public mirror if it exists
       if (shareToken.value) {
-        await deleteDoc(doc(db, 'players', `share_${shareToken.value}`)).catch(() => {})
+        await setDoc(doc(db, 'app', 'state'), {
+          sharedSessions: {
+            [shareToken.value]: null
+          }
+        }, { merge: true }).catch(() => {})
       }
       
       await setDoc(stateRef.value, { currentSession: null, history: newHistory })
@@ -214,12 +218,13 @@ export const useSessionStore = defineStore('session', () => {
       const updated = mutator(clone(session.value))
       await updateDoc(stateRef.value, { currentSession: updated })
       
-      // Mirror to public document if sharing is active
+      // Mirror to public app/state document if sharing is active
       if (shareToken.value) {
-        await updateDoc(doc(db, 'players', `share_${shareToken.value}`), {
-          currentSession: updated,
-          updatedAt: Date.now()
-        }).catch(err => console.warn('Public mirror sync failed:', err))
+        await setDoc(doc(db, 'app', 'state'), {
+          sharedSessions: {
+            [shareToken.value]: updated
+          }
+        }, { merge: true }).catch(err => console.warn('Public mirror sync failed:', err))
       }
     } catch (error) {
       console.error('Error patching session:', error)
@@ -325,15 +330,12 @@ export const useSessionStore = defineStore('session', () => {
         shareCreatedAt: Date.now(),
       }, { merge: true })
       
-      // Create public mirror document to bypass strict rules
-      await setDoc(doc(db, 'players', `share_${token}`), {
-        isSharedSession: true,
-        shareToken: token,
-        currentSession: session.value,
-        hostUid: authStore.user?.uid || 'app',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      })
+      // Create public mirror in app/state to bypass strict rules
+      await setDoc(doc(db, 'app', 'state'), {
+        sharedSessions: {
+          [token]: session.value
+        }
+      }, { merge: true })
       
       return token
     } catch (error) {
@@ -354,7 +356,11 @@ export const useSessionStore = defineStore('session', () => {
       
       // Delete public mirror
       if (currentToken) {
-        await deleteDoc(doc(db, 'players', `share_${currentToken}`)).catch(() => {})
+        await setDoc(doc(db, 'app', 'state'), {
+          sharedSessions: {
+            [currentToken]: null
+          }
+        }, { merge: true }).catch(() => {})
       }
     } catch (error) {
       console.error('Error revoking share token:', error)

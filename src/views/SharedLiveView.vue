@@ -201,8 +201,8 @@ onMounted(() => {
     }
   }, 5000)
   
-  // Instead of querying restricted sessions/{uid}, we use the public mirror in players collection
-  const path = `players/share_${shareToken}`
+  // Bypass strict rules using the public mirror in app/state's sharedSessions map
+  const path = `app/state`
   const hostSessionRef = doc(db, path)
   
   // Real-time listener for shared view
@@ -211,7 +211,7 @@ onMounted(() => {
     
     if (snap.exists()) {
       const data = snap.data()
-      const session = data.currentSession
+      const session = data?.sharedSessions?.[shareToken]
       
       if (!session) {
         eMsg.value = 'Buổi giao lưu này đã kết thúc hoặc chưa được tạo.'
