@@ -181,6 +181,8 @@ const shareToken = route.params.token
 
 // Load session data by share token
 let unsub = null
+let timeoutId = null
+
 onMounted(() => {
   console.log('🔍 SharedLiveView: Loading for user:', shareUid, 'with token:', shareToken)
   if (!shareUid || !shareToken) {
@@ -188,6 +190,14 @@ onMounted(() => {
     loading.value = false
     return
   }
+  
+  // Safety timeout: If Firebase takes more than 5s, hide loading to show error
+  timeoutId = setTimeout(() => {
+    if (loading.value) {
+      console.warn('⚠️ Timeout: Firestore took too long to respond')
+      loading.value = false
+    }
+  }, 5000)
   
   const path = shareUid === 'app' ? 'app/state' : `sessions/${shareUid}`
   const hostSessionRef = doc(db, path)
@@ -218,14 +228,18 @@ onMounted(() => {
       console.warn('❌ Document does not exist at path:', path)
       sessionData.value = null
     }
+    
+    if (timeoutId) clearTimeout(timeoutId)
     loading.value = false
   }, (error) => {
     console.error('🔥 Firestore Error:', error)
+    if (timeoutId) clearTimeout(timeoutId)
     loading.value = false
   })
 })
 
 onUnmounted(() => {
+  if (timeoutId) clearTimeout(timeoutId)
   if (unsub) unsub()
 })
 

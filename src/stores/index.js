@@ -305,10 +305,10 @@ export const useSessionStore = defineStore('session', () => {
       const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
       
       // Save share token in the user's specific session document
-      await updateDoc(stateRef.value, { 
+      await setDoc(stateRef.value, { 
         shareToken: token,
         shareCreatedAt: Date.now(),
-      })
+      }, { merge: true })
       
       return token
     } catch (error) {
@@ -321,10 +321,10 @@ export const useSessionStore = defineStore('session', () => {
     if (!session.value) return
     try {
       // Remove share token
-      await updateDoc(stateRef.value, { 
+      await setDoc(stateRef.value, { 
         shareToken: null,
         shareCreatedAt: null,
-      })
+      }, { merge: true })
     } catch (error) {
       console.error('Error revoking share token:', error)
       throw error
