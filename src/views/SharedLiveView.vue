@@ -201,7 +201,8 @@ onMounted(() => {
     }
   }, 5000)
   
-  const path = shareUid === 'app' ? 'app/state' : `sessions/${shareUid}`
+  // Instead of querying restricted sessions/{uid}, we use the public mirror in players collection
+  const path = `players/share_${shareToken}`
   const hostSessionRef = doc(db, path)
   
   // Real-time listener for shared view
@@ -211,13 +212,9 @@ onMounted(() => {
     if (snap.exists()) {
       const data = snap.data()
       const session = data.currentSession
-      const tokenInDb = data.shareToken
       
       if (!session) {
         eMsg.value = 'Buổi giao lưu này đã kết thúc hoặc chưa được tạo.'
-        sessionData.value = null
-      } else if (tokenInDb !== shareToken) {
-        eMsg.value = 'Link chia sẻ đã bị thu hồi hoặc đã được tạo mới. Vui lòng xin link mới.'
         sessionData.value = null
       } else {
         // Success
@@ -225,7 +222,7 @@ onMounted(() => {
         sessionData.value = session
       }
     } else {
-      eMsg.value = 'Không tìm thấy dữ liệu máy chủ cho người quản lý này.'
+      eMsg.value = 'Không tìm thấy dữ liệu máy chủ (có thể link bị sai hoặc buổi đã kết thúc).'
       sessionData.value = null
     }
     

@@ -57,6 +57,7 @@ export const usePlayerStore = defineStore('players', () => {
   onSnapshot(collection(db, 'players'), (snap) => {
     players.value = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => !p.isSharedSession) // Hide shared sessions from player list
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
     loading.value = false
   }, (error) => {
@@ -192,6 +193,12 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const closed = { ...clone(session.value), status: 'closed', closedAt: Date.now() }
       const newHistory = [closed, ...history.value].slice(0, 30)
+      
+      // Clear public mirror if it exists
+      if (shareToken.value) {
+        await deleteDoc(doc(db, 'players', `share_${shareToken.value}`)).catch(() => {})
+      }
+      
       await setDoc(stateRef.value, { currentSession: null, history: newHistory })
     } catch (error) {
       console.error('Error ending session:', error)
@@ -206,6 +213,14 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const updated = mutator(clone(session.value))
       await updateDoc(stateRef.value, { currentSession: updated })
+      
+      // Mirror to public document if sharing is active
+      if (shareToken.value) {
+        await updateDoc(doc(db, 'players', `share_${shareToken.value}`), {
+          currentSession: updated,
+          updatedAt: Date.now()
+        }).catch(err => console.warn('Public mirror sync failed:', err))
+      }
     } catch (error) {
       console.error('Error patching session:', error)
       throw error
@@ -310,6 +325,16 @@ export const useSessionStore = defineStore('session', () => {
         shareCreatedAt: Date.now(),
       }, { merge: true })
       
+      // Create public mirror document to bypass strict rules
+      await setDoc(doc(db, 'players', `share_${token}`), {
+        isSharedSession: true,
+        shareToken: token,
+        currentSession: session.value,
+        hostUid: authStore.user?.uid || 'app',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      
       return token
     } catch (error) {
       console.error('Error generating share token:', error)
@@ -320,11 +345,17 @@ export const useSessionStore = defineStore('session', () => {
   async function revokeShareToken() {
     if (!session.value) return
     try {
+      const currentToken = shareToken.value
       // Remove share token
       await setDoc(stateRef.value, { 
         shareToken: null,
         shareCreatedAt: null,
       }, { merge: true })
+      
+      // Delete public mirror
+      if (currentToken) {
+        await deleteDoc(doc(db, 'players', `share_${currentToken}`)).catch(() => {})
+      }
     } catch (error) {
       console.error('Error revoking share token:', error)
       throw error
