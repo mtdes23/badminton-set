@@ -182,34 +182,45 @@ const shareToken = route.params.token
 // Load session data by share token
 let unsub = null
 onMounted(() => {
-  console.log('Loading shared session for user:', shareUid, 'with token:', shareToken)
+  console.log('🔍 SharedLiveView: Loading for user:', shareUid, 'with token:', shareToken)
   if (!shareUid || !shareToken) {
+    console.error('❌ Missing UID or Token in URL')
     loading.value = false
     return
   }
   
-  const hostSessionRef = doc(db, 'sessions', shareUid)
+  const path = shareUid === 'app' ? 'app/state' : `sessions/${shareUid}`
+  const hostSessionRef = doc(db, path)
   
   // Real-time listener for shared view
   unsub = onSnapshot(hostSessionRef, (snap) => {
+    console.log(`📡 Snapshot received from ${path}. Exists:`, snap.exists())
+    
     if (snap.exists()) {
       const data = snap.data()
       const session = data.currentSession
       const tokenInDb = data.shareToken
       
+      console.log('📄 Data from DB:', { 
+        hasSession: !!session, 
+        tokenMatch: tokenInDb === shareToken,
+        dbToken: tokenInDb 
+      })
+
       if (session && tokenInDb === shareToken) {
-        console.log('Shared session updated real-time')
+        console.log('✅ Session found and token matches!')
         sessionData.value = session
       } else {
-        console.warn('Shared session not found or token mismatch')
+        console.warn('⚠️ Session not found or token mismatch')
         sessionData.value = null
       }
     } else {
+      console.warn('❌ Document does not exist at path:', path)
       sessionData.value = null
     }
     loading.value = false
   }, (error) => {
-    console.error('Error listening to shared session:', error)
+    console.error('🔥 Firestore Error:', error)
     loading.value = false
   })
 })

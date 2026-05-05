@@ -332,12 +332,20 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   const shareUrl = computed(() => {
-    if (!session.value || !shareToken.value || !authStore.user?.uid) return null
-    // Robust way to get the base URL for hash routing
-    const baseUrl = window.location.origin + window.location.pathname
-    const cleanBase = baseUrl.endsWith('/') ? baseUrl : baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1)
+    if (!session.value || !shareToken.value) return null
+    
+    const uid = authStore.user?.uid || 'app'
+    
+    // Robust way to get the base URL for hash routing without stripping subpaths
+    let baseUrl = window.location.origin + window.location.pathname
+    if (baseUrl.endsWith('/index.html')) {
+      baseUrl = baseUrl.replace('/index.html', '/')
+    } else if (!baseUrl.endsWith('/')) {
+      baseUrl += '/'
+    }
+    
     // Include UID in the link so SharedView knows which document to read
-    return `${cleanBase}#/shared/${authStore.user.uid}/${shareToken.value}`
+    return `${baseUrl}#/shared/${uid}/${shareToken.value}`
   })
 
   // ── Computed ──────────────────────────────────────────────────────────────
