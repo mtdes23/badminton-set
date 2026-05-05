@@ -121,6 +121,7 @@ export const useSessionStore = defineStore('session', () => {
   const history = ref([])
   const loading = ref(true)
   const shareToken = ref(null)
+  const sharedHostUid = ref(null) // NEW: Track if we are viewing someone else's session
 
   let unsub = null
 
@@ -144,17 +145,25 @@ export const useSessionStore = defineStore('session', () => {
         shareToken.value = null
       }
       loading.value = false
-    }, (err) => {
-      console.error('Session listener error:', err)
+    }, (error) => {
+      console.error('Error listening to session:', error)
       loading.value = false
     })
   }
 
-  // Bind listener when store initializes
-  bindSessionListener(authStore.user?.uid)
+  function bindSharedSession(hostUid) {
+    sharedHostUid.value = hostUid
+    bindSessionListener(hostUid)
+  }
+
+  // Bind listener when store initializes (only if not viewing a shared session)
+  if (!sharedHostUid.value) {
+    bindSessionListener(authStore.user?.uid)
+  }
 
   // Helper to get the correct document reference for writing
   const stateRef = computed(() => {
+    if (sharedHostUid.value) return doc(db, 'sessions', sharedHostUid.value)
     const uid = authStore.user?.uid
     return uid ? doc(db, 'sessions', uid) : doc(db, 'app', 'state')
   })
@@ -354,7 +363,9 @@ export const useSessionStore = defineStore('session', () => {
 
   // Re-bind when user changes (login/logout)
   watch(() => authStore.user?.uid, (newUid) => {
-    bindSessionListener(newUid)
+    if (!sharedHostUid.value) {
+      bindSessionListener(newUid)
+    }
   })
 
   // ── Share Links ──────────────────────────────────────────────────────────
@@ -362,9 +373,8 @@ export const useSessionStore = defineStore('session', () => {
   async function generateShareToken() {
     if (!session.value) return null
     try {
-      const token = 'static-' + Math.random().toString(36).substring(2, 10)
+      const token = Math.random().toString(36).substring(2, 15)
       
-      // Save share token in the user's specific session document just to trigger the UI
       await setDoc(stateRef.value, { 
         shareToken: token,
         shareCreatedAt: Date.now(),
@@ -394,24 +404,17 @@ export const useSessionStore = defineStore('session', () => {
   const shareUrl = computed(() => {
     if (!session.value || !shareToken.value) return null
     
-    // Static mode: encode session data into the URL directly
-    try {
-      const jsonStr = JSON.stringify(session.value)
-      // UTF-8 safe base64 encoding
-      const b64 = btoa(unescape(encodeURIComponent(jsonStr)))
-      
-      let baseUrl = window.location.origin + window.location.pathname
-      if (baseUrl.endsWith('/index.html')) {
-        baseUrl = baseUrl.replace('/index.html', '/')
-      } else if (!baseUrl.endsWith('/')) {
-        baseUrl += '/'
-      }
-      
-      return `${baseUrl}#/shared/static/${encodeURIComponent(b64)}`
-    } catch (error) {
-      console.error('Error generating static URL:', error)
-      return null
+    const uid = authStore.user?.uid || session.value.hostUid
+    if (!uid) return null
+    
+    let baseUrl = window.location.origin + window.location.pathname
+    if (baseUrl.endsWith('/index.html')) {
+      baseUrl = baseUrl.replace('/index.html', '/')
+    } else if (!baseUrl.endsWith('/')) {
+      baseUrl += '/'
     }
+    
+    return `${baseUrl}#/shared/${uid}/${shareToken.value}`
   })
 
   // ── Computed ──────────────────────────────────────────────────────────────
@@ -448,6 +451,6 @@ export const useSessionStore = defineStore('session', () => {
     addExpense, removeExpense,
     generateShareToken, revokeShareToken, shareUrl,
     confirmedCount, totalExpense, perPersonCost, waitingPlayers,
-    bindSessionListener, // Expose for manual calls if needed
+    bindSessionListener, bindSharedSession, sharedHostUid, // Expose for manual calls if needed
   }
 })

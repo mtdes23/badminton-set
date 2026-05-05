@@ -41,7 +41,7 @@
             <span class="label">/ người</span>
           </div>
         </div>
-        <div class="live-header-share">
+        <div class="live-header-share" v-if="!isGuest">
           <button 
             v-if="!store.shareToken" 
             @click="showShareModal = true"
@@ -192,17 +192,39 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import AttendancePanel from '@/components/AttendancePanel.vue'
 import CourtDiagram    from '@/components/CourtDiagram.vue'
 import CostSplitter    from '@/components/CostSplitter.vue'
 import { useSessionStore } from '@/stores/index.js'
 
+const route          = useRoute()
+const router         = useRouter()
 const store          = useSessionStore()
 const session        = computed(() => store.session)
 const confirmedCount = computed(() => store.confirmedCount)
 const waitingCount   = computed(() => store.waitingPlayers.length)
 const perPersonCost  = computed(() => store.perPersonCost)
+
+const isGuest = computed(() => route.name === 'shared')
+
+onMounted(() => {
+  if (route.name === 'shared' && route.params.uid) {
+    store.bindSharedSession(route.params.uid)
+  }
+})
+
+// Validate token for guests
+watch(() => store.shareToken, (newShareToken) => {
+  if (route.name === 'shared') {
+    if (store.loading) return // Don't redirect while initial load
+    if (!newShareToken || newShareToken !== route.params.token) {
+      alert("Link chia sẻ không hợp lệ hoặc đã bị quản lý thu hồi.")
+      router.push('/')
+    }
+  }
+})
 
 const activeTab = ref('attendance')
 const showShareModal = ref(false)
