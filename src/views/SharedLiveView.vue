@@ -103,11 +103,18 @@
               <p class="muted" style="margin-bottom: var(--sp-3); font-size: 0.85rem">Chọn tên của bạn để báo có mặt với quản lý</p>
               
               <div class="self-attend-form" v-if="!selfAttendSuccess">
-                <select v-model="selectedPlayerId" class="player-select" aria-label="Chọn tên bạn">
-                  <option value="">-- Chọn tên của bạn --</option>
-                  <option v-for="p in allPlayers" :key="p.id" :value="p.id">{{ p.name }}</option>
-                </select>
-                <button class="btn btn-primary" @click="submitAttendance" :disabled="!selectedPlayerId || isSubmitting">
+                <input 
+                  v-model="guestInputName" 
+                  type="text" 
+                  class="player-select" 
+                  placeholder="Nhập tên của bạn..." 
+                  list="players-list"
+                  @keydown.enter="submitAttendance"
+                />
+                <datalist id="players-list">
+                  <option v-for="p in allPlayers" :key="p.id" :value="p.name"></option>
+                </datalist>
+                <button class="btn btn-primary" @click="submitAttendance" :disabled="!guestInputName.trim() || isSubmitting">
                   {{ isSubmitting ? 'Đang gửi...' : 'Báo có mặt' }}
                 </button>
               </div>
@@ -289,20 +296,39 @@ const attendeeDetails = computed(() => {
 })
 
 // ── Self Attendance ─────────────────────────────────────────────────────────
-const selectedPlayerId = ref('')
+const guestInputName = ref('')
 const isSubmitting = ref(false)
 const selfAttendSuccess = ref(false)
 const selfAttendError = ref('')
 
 async function submitAttendance() {
-  if (!selectedPlayerId.value || !sessionData.value) return
+  const name = guestInputName.value.trim()
+  if (!name || !sessionData.value) return
+  
   isSubmitting.value = true
   selfAttendError.value = ''
+  
   try {
-    // Write flag to the public players collection so the host can process it
-    await updateDoc(doc(db, 'players', selectedPlayerId.value), {
-      attending_session: sessionData.value.id
-    })
+    const existingPlayer = allPlayers.value.find(p => p.name.toLowerCase() === name.toLowerCase())
+    
+    if (existingPlayer) {
+      // Write flag to the existing public player document
+      await updateDoc(doc(db, 'players', existingPlayer.id), {
+        attending_session: sessionData.value.id
+      })
+    } else {
+      // Create new player and write flag
+      const refDoc = await playerStore.addPlayer({
+        name: name,
+        skill: 'medium'
+      })
+      if (refDoc?.id) {
+        await updateDoc(doc(db, 'players', refDoc.id), {
+          attending_session: sessionData.value.id
+        })
+      }
+    }
+    
     selfAttendSuccess.value = true
   } catch (error) {
     console.error('Error submitting attendance:', error)
