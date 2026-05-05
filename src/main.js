@@ -16,7 +16,7 @@ const router = createRouter({
     { path: '/',             name: 'home',       component: HomeView },
     { path: '/live',         name: 'live',       component: LiveView },
     { path: '/history',      name: 'history',    component: HistoryView },
-    { path: '/shared/:uid/:token', name: 'shared',    component: LiveView }, // Use LiveView for fully interactive shared session
+    { path: '/shared/:uid/:token', name: 'shared',    component: SharedLiveView },
   ],
   scrollBehavior: () => ({ top: 0 })
 })

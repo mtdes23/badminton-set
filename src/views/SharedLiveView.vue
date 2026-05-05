@@ -192,16 +192,17 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/firebase'
-import { usePlayerStore } from '@/stores/index.js'
+import { usePlayerStore, useSessionStore } from '@/stores/index.js'
 import SkillBadge from '@/components/SkillBadge.vue'
 
 const route = useRoute()
 const playerStore = usePlayerStore()
 
-const loading = ref(true)
-const sessionData = ref(null)
+const sessionStore = useSessionStore()
+const loading = computed(() => sessionStore.loading)
+const sessionData = computed(() => sessionStore.session)
 const activeTab = ref('attendance')
 
 const shareUid = route.params.uid?.trim().replace(/\/$/, '')
@@ -209,44 +210,23 @@ const shareToken = route.params.token?.trim().replace(/\/$/, '')
 
 const eMsg = ref('')
 
-// Load session data by share token
-let timeoutId = null
-
 onMounted(() => {
   if (!shareUid || !shareToken) {
     eMsg.value = 'URL không hợp lệ (thiếu thông tin ID hoặc Token).'
-    loading.value = false
     return
   }
   
-  if (shareUid === 'static') {
-    try {
-      // Decode the URL encoded base64 token
-      const b64 = decodeURIComponent(shareToken)
-      // Decode from base64 (UTF-8 safe)
-      const jsonStr = decodeURIComponent(escape(atob(b64)))
-      const session = JSON.parse(jsonStr)
-      
-      sessionData.value = session
-      eMsg.value = ''
-      loading.value = false
-    } catch (error) {
-      console.error('Lỗi khi giải mã link tĩnh:', error)
-      eMsg.value = 'Link tĩnh không hợp lệ hoặc dữ liệu bị lỗi định dạng.'
-      sessionData.value = null
-      loading.value = false
-    }
-    return
-  }
-  
-  // Legacy links fallback
-  eMsg.value = 'Link chia sẻ cũ này không còn được hỗ trợ. Vui lòng xin link tĩnh mới từ người quản lý.'
-  sessionData.value = null
-  loading.value = false
+  // Bind real-time session
+  sessionStore.bindSharedSession(shareUid)
 })
 
-onUnmounted(() => {
-  if (timeoutId) clearTimeout(timeoutId)
+// Validate token for guests
+watch(() => sessionStore.shareToken, (newShareToken) => {
+  if (!loading.value && sessionData.value) {
+    if (!newShareToken || newShareToken !== shareToken) {
+      eMsg.value = 'Link chia sẻ không hợp lệ hoặc đã bị quản lý thu hồi.'
+    }
+  }
 })
 
 const playerMap = computed(() => {
@@ -317,31 +297,30 @@ async function submitAttendance() {
   selfAttendError.value = ''
   
   try {
+    let playerId = null
     const existingPlayer = allPlayers.value.find(p => p && p.name && p.name.toLowerCase() === name.toLowerCase())
     
     let task = null
     if (existingPlayer) {
-      // Write flag to the existing public player document
-      task = updateDoc(doc(db, 'players', existingPlayer.id), {
-        attending_session: sessionData.value.id
-      })
+      playerId = existingPlayer.id
+      task = Promise.resolve()
     } else {
-      // Create new player and write flag
       task = (async () => {
         const refDoc = await playerStore.addPlayer({
           name: name,
           skill: 'medium'
         })
         if (refDoc?.id) {
-          await updateDoc(doc(db, 'players', refDoc.id), {
-            attending_session: sessionData.value.id
-          })
+          playerId = refDoc.id
         }
       })()
     }
     
-    // Wait for task with 5 seconds timeout
     await withTimeout(task, 5000)
+    
+    if (playerId) {
+      await sessionStore.setAttendance(playerId, 'confirmed')
+    }
     
     selfAttendSuccess.value = true
   } catch (error) {
