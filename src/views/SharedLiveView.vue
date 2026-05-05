@@ -301,6 +301,14 @@ const isSubmitting = ref(false)
 const selfAttendSuccess = ref(false)
 const selfAttendError = ref('')
 
+// Helper for timeout
+const withTimeout = (promise, ms) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), ms))
+  ])
+}
+
 async function submitAttendance() {
   const name = guestInputName.value.trim()
   if (!name || !sessionData.value) return
@@ -309,30 +317,42 @@ async function submitAttendance() {
   selfAttendError.value = ''
   
   try {
-    const existingPlayer = allPlayers.value.find(p => p.name.toLowerCase() === name.toLowerCase())
+    const existingPlayer = allPlayers.value.find(p => p && p.name && p.name.toLowerCase() === name.toLowerCase())
     
+    let task = null
     if (existingPlayer) {
       // Write flag to the existing public player document
-      await updateDoc(doc(db, 'players', existingPlayer.id), {
+      task = updateDoc(doc(db, 'players', existingPlayer.id), {
         attending_session: sessionData.value.id
       })
     } else {
       // Create new player and write flag
-      const refDoc = await playerStore.addPlayer({
-        name: name,
-        skill: 'medium'
-      })
-      if (refDoc?.id) {
-        await updateDoc(doc(db, 'players', refDoc.id), {
-          attending_session: sessionData.value.id
+      task = (async () => {
+        const refDoc = await playerStore.addPlayer({
+          name: name,
+          skill: 'medium'
         })
-      }
+        if (refDoc?.id) {
+          await updateDoc(doc(db, 'players', refDoc.id), {
+            attending_session: sessionData.value.id
+          })
+        }
+      })()
     }
+    
+    // Wait for task with 5 seconds timeout
+    await withTimeout(task, 5000)
     
     selfAttendSuccess.value = true
   } catch (error) {
     console.error('Error submitting attendance:', error)
-    selfAttendError.value = 'Lỗi gửi yêu cầu: Hệ thống từ chối quyền hoặc lỗi mạng.'
+    if (error.message === 'TIMEOUT') {
+      selfAttendError.value = 'Mạng chậm hoặc hệ thống không phản hồi. Vui lòng thử lại.'
+    } else if (error.code === 'permission-denied') {
+      selfAttendError.value = 'Hệ thống chặn quyền điểm danh (do quản lý chưa mở khóa bảo mật).'
+    } else {
+      selfAttendError.value = 'Lỗi gửi yêu cầu: ' + (error.message || 'Không xác định')
+    }
   } finally {
     isSubmitting.value = false
   }
