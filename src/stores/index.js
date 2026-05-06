@@ -370,13 +370,14 @@ export const useSessionStore = defineStore('session', () => {
 
   // ── Share Links ──────────────────────────────────────────────────────────
 
-  async function generateShareToken() {
+  async function generateShareToken(password = '') {
     if (!session.value) return null
     try {
       const token = Math.random().toString(36).substring(2, 15)
       
       await setDoc(stateRef.value, { 
         shareToken: token,
+        sharePassword: password || null,
         shareCreatedAt: Date.now(),
       }, { merge: true })
       
@@ -393,10 +394,23 @@ export const useSessionStore = defineStore('session', () => {
       // Remove share token
       await setDoc(stateRef.value, { 
         shareToken: null,
+        sharePassword: null,
         shareCreatedAt: null,
       }, { merge: true })
     } catch (error) {
       console.error('Error revoking share token:', error)
+      throw error
+    }
+  }
+
+  async function updateSharePassword(password) {
+    if (!session.value || !shareToken.value) return
+    try {
+      await setDoc(stateRef.value, { 
+        sharePassword: password || null,
+      }, { merge: true })
+    } catch (error) {
+      console.error('Error updating share password:', error)
       throw error
     }
   }
@@ -449,7 +463,7 @@ export const useSessionStore = defineStore('session', () => {
     setAttendance, removeAttendee,
     assignPlayerToCourt, removeFromCourt, clearCourt, assignMultiplePlayersToCourt,
     addExpense, removeExpense,
-    generateShareToken, revokeShareToken, shareUrl,
+    generateShareToken, revokeShareToken, updateSharePassword, shareUrl,
     confirmedCount, totalExpense, perPersonCost, waitingPlayers,
     bindSessionListener, bindSharedSession, sharedHostUid, // Expose for manual calls if needed
   }

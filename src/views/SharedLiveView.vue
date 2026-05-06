@@ -13,6 +13,27 @@
       <RouterLink to="/" class="btn btn-primary">← Quay lại trang chủ</RouterLink>
     </div>
 
+    <!-- Password Gate -->
+    <div v-else-if="sessionData.sharePassword && !passwordVerified" class="password-gate">
+      <div class="error-icon">🔐</div>
+      <h2>Yêu cầu mật khẩu</h2>
+      <p class="muted">Buổi giao lưu này được bảo vệ bằng mật khẩu.</p>
+      <div class="input-group" style="margin: var(--sp-4) auto; max-width: 300px;">
+        <input 
+          v-model="guestPasswordInput" 
+          type="password" 
+          placeholder="Nhập mật khẩu..." 
+          @keydown.enter="verifyPassword"
+        />
+      </div>
+      <button class="btn btn-primary" @click="verifyPassword" style="margin-bottom: var(--sp-2)">
+        Xác nhận
+      </button>
+      <p v-if="passwordError" class="error-text" style="color: var(--c-red); font-size: 0.9rem;">
+        {{ passwordError }}
+      </p>
+    </div>
+
     <!-- Session content (read-only) -->
     <template v-else>
       <!-- Read-only badge -->
@@ -210,6 +231,20 @@ const shareToken = route.params.token?.trim().replace(/\/$/, '')
 
 const eMsg = ref('')
 
+// Password verification
+const passwordVerified = ref(false)
+const guestPasswordInput = ref('')
+const passwordError = ref('')
+
+function verifyPassword() {
+  if (guestPasswordInput.value === sessionData.value?.sharePassword) {
+    passwordVerified.value = true
+    passwordError.value = ''
+  } else {
+    passwordError.value = 'Mật khẩu không chính xác!'
+  }
+}
+
 onMounted(() => {
   if (!shareUid || !shareToken) {
     eMsg.value = 'URL không hợp lệ (thiếu thông tin ID hoặc Token).'
@@ -389,7 +424,8 @@ function formatVNDShort(n) {
 }
 
 .loading-state,
-.error-state {
+.error-state,
+.password-gate {
   display: flex;
   flex-direction: column;
   align-items: center;
