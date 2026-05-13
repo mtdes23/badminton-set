@@ -3,10 +3,11 @@ import { ref, computed, watch } from 'vue'
 import {
   collection, doc,
   onSnapshot,
-  setDoc, updateDoc, deleteDoc, addDoc,
+  setDoc, updateDoc, deleteDoc, addDoc, deleteField,
 } from 'firebase/firestore'
 import { db } from '@/firebase.js'
 
+import { useAuthStore } from '@/stores/auth.js'
 export const SKILL_LEVELS = [
   { value: 'weak',   label: 'Yếu',        color: '#666',    score: 1 },
   { value: 'medium', label: 'Trung bình',  color: '#FFB800', score: 2 },
@@ -50,24 +51,47 @@ function clone(obj) {
 // ─── Player Store ─────────────────────────────────────────────────────────────
 
 export const usePlayerStore = defineStore('players', () => {
+  const authStore = useAuthStore()
   const players = ref([])
   const loading = ref(true)
 
-  // Real-time listener — all devices see changes instantly
-  onSnapshot(collection(db, 'players'), (snap) => {
-    players.value = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(p => !p.isSharedSession) // Hide shared sessions from player list
-      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
-    loading.value = false
-  }, (error) => {
-    console.error('Error listening to players:', error)
-    loading.value = false
+  let unsub = null
+
+  const hostUid = computed(() => {
+    // Determine the owner of the players list
+    const sessionStore = useSessionStore()
+    return sessionStore.sharedHostUid || authStore.user?.uid || null
   })
+
+  watch(hostUid, (uid) => {
+    if (unsub) {
+      unsub()
+      unsub = null
+    }
+    loading.value = true
+    if (uid) {
+      const playersRef = collection(db, 'users', uid, 'players')
+      unsub = onSnapshot(playersRef, (snap) => {
+        players.value = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(p => !p.isSharedSession)
+          .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+        loading.value = false
+      }, (error) => {
+        console.error('Error listening to players:', error)
+        loading.value = false
+      })
+    } else {
+      players.value = []
+      loading.value = false
+    }
+  }, { immediate: true })
 
   async function addPlayer(data) {
     try {
-      return await addDoc(collection(db, 'players'), {
+      const uid = hostUid.value
+      if (!uid) throw new Error('No host uid found')
+      return await addDoc(collection(db, 'users', uid, 'players'), {
         name:      data.name.trim(),
         skill:     data.skill || 'medium',
         phone:     data.phone || '',
@@ -82,7 +106,9 @@ export const usePlayerStore = defineStore('players', () => {
 
   async function updatePlayer(id, data) {
     try {
-      await updateDoc(doc(db, 'players', id), data)
+      const uid = hostUid.value
+      if (!uid) return
+      await updateDoc(doc(db, 'users', uid, 'players', id), data)
     } catch (error) {
       console.error('Error updating player:', error)
       throw error
@@ -91,7 +117,9 @@ export const usePlayerStore = defineStore('players', () => {
 
   async function removePlayer(id) {
     try {
-      await deleteDoc(doc(db, 'players', id))
+      const uid = hostUid.value
+      if (!uid) return
+      await deleteDoc(doc(db, 'users', uid, 'players', id))
     } catch (error) {
       console.error('Error removing player:', error)
       throw error
@@ -107,7 +135,7 @@ export const usePlayerStore = defineStore('players', () => {
 
 // ─── Session Store ────────────────────────────────────────────────────────────
 
-import { useAuthStore } from '@/stores/auth.js'
+
 
 /**
  * Session state logic: Each user has their own session doc at sessions/{uid}.
@@ -117,11 +145,31 @@ import { useAuthStore } from '@/stores/auth.js'
 export const useSessionStore = defineStore('session', () => {
   const authStore = useAuthStore()
   
-  const session = ref(null)
+  const activeSessions = ref([])
   const history = ref([])
   const loading = ref(true)
-  const shareToken = ref(null)
+  const activeSessionId = ref(null)
+  
+  const session = computed(() => {
+    return activeSessions.value.find(s => s.id === activeSessionId.value) || activeSessions.value[0] || null
+  })
+  const shareToken = computed(() => session.value?.shareToken || null)
+  
   const sharedHostUid = ref(null) // NEW: Track if we are viewing someone else's session
+  
+  function setActiveSession(id) {
+    activeSessionId.value = id
+  }
+  
+  // Public mirror for shared sessions
+  const publicSharedSessions = ref({})
+
+  // Listen to global app state to get public shared sessions
+  onSnapshot(doc(db, 'app', 'state'), (snap) => {
+    if (snap.exists()) {
+      publicSharedSessions.value = snap.data().sharedSessions || {}
+    }
+  })
 
   let unsub = null
 
@@ -136,13 +184,18 @@ export const useSessionStore = defineStore('session', () => {
     unsub = onSnapshot(refDoc, (snap) => {
       if (snap.exists()) {
         const data = snap.data()
-        session.value = data.currentSession ?? null
+        
+        // Backwards compatibility
+        let active = data.activeSessions || []
+        if (data.currentSession && active.length === 0) {
+          active = [data.currentSession]
+        }
+        
+        activeSessions.value = active
         history.value = data.history ?? []
-        shareToken.value = data.shareToken ?? null
       } else {
-        session.value = null
+        activeSessions.value = []
         history.value = []
-        shareToken.value = null
       }
       loading.value = false
     }, (error) => {
@@ -157,9 +210,11 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   // Bind listener when store initializes (only if not viewing a shared session)
-  if (!sharedHostUid.value) {
-    bindSessionListener(authStore.user?.uid)
-  }
+  watch(() => authStore.user, (user) => {
+    if (!sharedHostUid.value) {
+      bindSessionListener(user?.uid)
+    }
+  }, { immediate: true })
 
   // Helper to get the correct document reference for writing
   const stateRef = computed(() => {
@@ -172,8 +227,12 @@ export const useSessionStore = defineStore('session', () => {
 
   async function createSession(data) {
     try {
+      const token = Math.random().toString(36).substring(2, 8).toUpperCase()
       const s = {
         id:         `s${Date.now()}`,
+        shareToken: token,
+        password:   data.password   || null,
+        shareCreatedAt: Date.now(),
         title:      data.title      || 'Buổi giao lưu',
         venue:      data.venue      || '',
         date:       data.date       || new Date().toISOString().slice(0, 10),
@@ -190,7 +249,27 @@ export const useSessionStore = defineStore('session', () => {
         hostBankInfo: authStore.bankInfo || null,
         createdAt:  Date.now(),
       }
-      await setDoc(stateRef.value, { currentSession: s }, { merge: true })
+      
+      const newActive = [...activeSessions.value, s]
+      await setDoc(stateRef.value, { activeSessions: newActive, currentSession: null }, { merge: true })
+      
+      // Auto-publish to public Live list
+      await setDoc(doc(db, 'app', 'state'), {
+        sharedSessions: {
+          [token]: {
+            uid: authStore.user?.uid || null,
+            token: token,
+            title: s.title,
+            venue: s.venue,
+            hostName: authStore.user?.displayName || 'Quản lý',
+            hasPassword: !!s.password,
+            password: s.password,
+            createdAt: Date.now()
+          }
+        }
+      }, { merge: true }).catch(console.error)
+      
+      return s.id
     } catch (error) {
       console.error('Error creating session:', error)
       throw error
@@ -202,17 +281,19 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const closed = { ...clone(session.value), status: 'closed', closedAt: Date.now() }
       const newHistory = [closed, ...history.value].slice(0, 30)
+      const newActive = activeSessions.value.filter(s => s.id !== session.value.id)
       
       // Clear public mirror if it exists
-      if (shareToken.value) {
+      if (session.value.shareToken) {
         await setDoc(doc(db, 'app', 'state'), {
           sharedSessions: {
-            [shareToken.value]: null
+            [session.value.shareToken]: deleteField()
           }
         }, { merge: true }).catch(() => {})
       }
       
-      await setDoc(stateRef.value, { currentSession: null, history: newHistory })
+      await setDoc(stateRef.value, { activeSessions: newActive, history: newHistory, currentSession: null }, { merge: true })
+      activeSessionId.value = null
     } catch (error) {
       console.error('Error ending session:', error)
       throw error
@@ -224,8 +305,14 @@ export const useSessionStore = defineStore('session', () => {
   async function _patch(mutator) {
     if (!session.value) return
     try {
-      const updated = mutator(clone(session.value))
-      await updateDoc(stateRef.value, { currentSession: updated })
+      const idx = activeSessions.value.findIndex(s => s.id === session.value.id)
+      if (idx === -1) return
+      
+      const updated = mutator(clone(activeSessions.value[idx]))
+      const newActive = [...activeSessions.value]
+      newActive[idx] = updated
+      
+      await updateDoc(stateRef.value, { activeSessions: newActive })
     } catch (error) {
       console.error('Error patching session:', error)
       throw error
@@ -271,7 +358,7 @@ export const useSessionStore = defineStore('session', () => {
       // Clear flags from players collection to acknowledge
       for (const player of playersToProcess) {
         try {
-          await updateDoc(doc(db, 'players', player.id), {
+          await updateDoc(doc(db, 'users', authStore.user.uid, 'players', player.id), {
             attending_session: null
           })
         } catch (e) {
@@ -370,16 +457,33 @@ export const useSessionStore = defineStore('session', () => {
 
   // ── Share Links ──────────────────────────────────────────────────────────
 
-  async function generateShareToken(password = '') {
+  async function generateShareToken(password = null) {
     if (!session.value) return null
     try {
-      const token = Math.random().toString(36).substring(2, 15)
+      const token = Math.random().toString(36).substring(2, 8).toUpperCase()
+      const finalPassword = password || session.value.password || null
       
-      await setDoc(stateRef.value, { 
-        shareToken: token,
-        sharePassword: password || null,
-        shareCreatedAt: Date.now(),
-      }, { merge: true })
+      await _patch(s => {
+        s.shareToken = token
+        s.shareCreatedAt = Date.now()
+        if (password !== null) s.password = password
+        return s
+      })
+      
+      await setDoc(doc(db, 'app', 'state'), {
+        sharedSessions: {
+          [token]: {
+            uid: authStore.user?.uid || session.value.hostUid,
+            token: token,
+            title: session.value.title,
+            venue: session.value.venue,
+            hostName: authStore.user?.displayName || 'Quản lý',
+            hasPassword: !!finalPassword,
+            password: finalPassword,
+            createdAt: Date.now()
+          }
+        }
+      }, { merge: true }).catch(console.error)
       
       return token
     } catch (error) {
@@ -390,30 +494,28 @@ export const useSessionStore = defineStore('session', () => {
 
   async function revokeShareToken() {
     if (!session.value) return
+    const currentToken = session.value.shareToken
     try {
-      // Remove share token
-      await setDoc(stateRef.value, { 
-        shareToken: null,
-        sharePassword: null,
-        shareCreatedAt: null,
-      }, { merge: true })
+      await _patch(s => {
+        s.shareToken = null
+        s.shareCreatedAt = null
+        return s
+      })
+      
+      if (currentToken) {
+        await setDoc(doc(db, 'app', 'state'), {
+          sharedSessions: {
+            [currentToken]: deleteField()
+          }
+        }, { merge: true }).catch(console.error)
+      }
     } catch (error) {
       console.error('Error revoking share token:', error)
       throw error
     }
   }
 
-  async function updateSharePassword(password) {
-    if (!session.value || !shareToken.value) return
-    try {
-      await setDoc(stateRef.value, { 
-        sharePassword: password || null,
-      }, { merge: true })
-    } catch (error) {
-      console.error('Error updating share password:', error)
-      throw error
-    }
-  }
+
 
   const shareUrl = computed(() => {
     if (!session.value || !shareToken.value) return null
@@ -458,12 +560,12 @@ export const useSessionStore = defineStore('session', () => {
   })
 
   return {
-    session, history, loading, shareToken,
-    createSession, endSession,
+    activeSessions, session, history, loading, shareToken, publicSharedSessions,
+    setActiveSession, createSession, endSession,
     setAttendance, removeAttendee,
     assignPlayerToCourt, removeFromCourt, clearCourt, assignMultiplePlayersToCourt,
     addExpense, removeExpense,
-    generateShareToken, revokeShareToken, updateSharePassword, shareUrl,
+    generateShareToken, revokeShareToken, shareUrl,
     confirmedCount, totalExpense, perPersonCost, waitingPlayers,
     bindSessionListener, bindSharedSession, sharedHostUid, // Expose for manual calls if needed
   }

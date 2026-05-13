@@ -118,7 +118,7 @@
       </div>
       <div v-else class="qr-empty-state">
         <p class="muted">Chưa có thông tin ngân hàng của Host để tạo mã QR.</p>
-        <button v-if="authStore.user" class="btn btn-ghost btn-sm" @click="openSettings">
+        <button v-if="isHost" class="btn btn-ghost btn-sm" @click="openSettings">
           Thiết lập ngân hàng của tôi
         </button>
       </div>
@@ -136,6 +136,7 @@ const authStore = useAuthStore()
 
 const session        = computed(() => store.session)
 const expenses       = computed(() => session.value?.expenses ?? [])
+const isHost         = computed(() => authStore.user && session.value && authStore.user.uid === session.value.hostUid)
 const confirmedCount = computed(() => store.confirmedCount)
 const totalExpense   = computed(() => store.totalExpense)
 const perPersonCost  = computed(() => store.perPersonCost)

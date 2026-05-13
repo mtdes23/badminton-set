@@ -4,17 +4,17 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import App from './App.vue'
 import './style.css'
 
-// Views
-import HomeView from './views/HomeView.vue'
-import LiveView from './views/LiveView.vue'
-import HistoryView from './views/HistoryView.vue'
-import SharedLiveView from './views/SharedLiveView.vue'
+// Lazy-loaded Views for better performance
+const HomeView = () => import('./views/HomeView.vue')
+const LiveView = () => import('./views/LiveView.vue')
+const HistoryView = () => import('./views/HistoryView.vue')
+const SharedLiveView = () => import('./views/SharedLiveView.vue')
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/',             name: 'home',       component: HomeView },
-    { path: '/live',         name: 'live',       component: LiveView },
+    { path: '/live/:id?',         name: 'live',       component: LiveView },
     { path: '/history',      name: 'history',    component: HistoryView },
     { path: '/shared/:uid/:token', name: 'shared',    component: SharedLiveView },
   ],

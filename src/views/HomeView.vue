@@ -17,19 +17,26 @@
         </p>
         <div class="hero-ctas">
           <button
-            v-if="!session"
             class="btn btn-primary btn-lg"
             @click="showCreate = true"
             id="btn-create-session"
           >
             🏸 Tạo buổi mới
           </button>
-          <RouterLink v-else to="/live" class="btn btn-primary btn-lg" id="btn-go-live">
-            📋 Vào buổi đang diễn ra →
-          </RouterLink>
           <button class="btn btn-ghost btn-lg" @click="showPlayerMgr = true" id="btn-manage-players">
             👥 Quản lý thành viên
           </button>
+        </div>
+        
+        <div class="join-by-id" style="margin-top: var(--sp-4); display: flex; gap: var(--sp-2); align-items: center; max-width: 320px;">
+          <input 
+            v-model="joinId" 
+            type="text" 
+            placeholder="Nhập mã ID phòng (nếu có)..." 
+            style="flex: 1; padding: 0.8rem 1rem; border-radius: var(--r-md); border: 1px solid var(--c-border); background: var(--c-bg-secondary); color: var(--c-text);" 
+            @keydown.enter="joinById" 
+          />
+          <button class="btn btn-primary" style="padding: 0.8rem 1.2rem;" @click="joinById">Vào</button>
         </div>
       </div>
       <div class="hero-shuttle" aria-hidden="true">🏸</div>
@@ -55,29 +62,50 @@
     </section>
 
     <!-- Active session preview -->
-    <section v-if="session" class="active-session-card card card-lit">
-      <div class="as-header">
-        <div class="pulse-dot" aria-hidden="true" style="width:10px;height:10px;border-radius:50%;background:var(--c-lime);animation:pulseLime 2s ease infinite"></div>
-        <h2>{{ session.title }}</h2>
-        <div class="as-meta muted">{{ session.venue }} · {{ formatDate(session.date) }}</div>
+    <div v-if="activeSessions.length > 0" class="active-sessions-list" style="display: flex; flex-direction: column; gap: var(--sp-4);">
+      <section v-for="s in activeSessions" :key="s.id" class="active-session-card card card-lit">
+        <div class="as-header">
+          <div class="pulse-dot" aria-hidden="true" style="width:10px;height:10px;border-radius:50%;background:var(--c-lime);animation:pulseLime 2s ease infinite"></div>
+          <h2>{{ s.title }}</h2>
+          <div class="as-meta muted">{{ s.venue }} · {{ formatDate(s.date) }}</div>
+        </div>
+        <div class="as-stats">
+          <div class="as-stat">
+            <div class="stat-number">{{ getConfirmedCount(s) }}</div>
+            <div class="label">Có mặt</div>
+          </div>
+          <div class="as-stat">
+            <div class="stat-number">{{ s.courtCount }}</div>
+            <div class="label">Sân</div>
+          </div>
+          <div class="as-stat">
+            <div class="stat-number">{{ getWaitingCount(s) }}</div>
+            <div class="label">Chờ đấu</div>
+          </div>
+        </div>
+        <div class="as-actions">
+          <RouterLink :to="`/live/${s.id}`" class="btn btn-primary" id="btn-goto-live">Vào màn quản lý →</RouterLink>
+          <button class="btn btn-danger btn-sm" @click="confirmEndSession(s.id)" id="btn-end-session">Kết thúc</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Public live sessions list -->
+    <section class="public-live-section" aria-labelledby="live-heading" v-if="publicLiveSessions.length > 0">
+      <div class="section-header" style="margin-bottom: var(--sp-4);">
+        <h2 id="live-heading" style="font-size: 1.5rem;">🔴 Đang diễn ra (Live)</h2>
       </div>
-      <div class="as-stats">
-        <div class="as-stat">
-          <div class="stat-number">{{ sessionStore.confirmedCount }}</div>
-          <div class="label">Có mặt</div>
+      <div class="features-grid">
+        <div v-for="s in publicLiveSessions" :key="s.token" class="feature-card card card-lit" style="cursor: pointer;" @click="joinPublicSession(s)">
+          <div style="display: flex; justify-content: space-between; width: 100%; align-items: flex-start;">
+            <div class="feat-content">
+              <h3 class="feat-title">{{ s.title }}</h3>
+              <p class="feat-desc muted">{{ s.venue }} · ID: <strong style="color:var(--c-lime)">{{ s.token }}</strong></p>
+              <p class="feat-desc muted" style="font-size: 0.75rem; margin-top: 4px;">Quản lý: {{ s.hostName }}</p>
+            </div>
+            <div v-if="s.hasPassword" class="feat-icon" aria-label="Có mật khẩu" style="font-size: 1.2rem;">🔒</div>
+          </div>
         </div>
-        <div class="as-stat">
-          <div class="stat-number">{{ session.courtCount }}</div>
-          <div class="label">Sân</div>
-        </div>
-        <div class="as-stat">
-          <div class="stat-number">{{ sessionStore.waitingPlayers.length }}</div>
-          <div class="label">Chờ đấu</div>
-        </div>
-      </div>
-      <div class="as-actions">
-        <RouterLink to="/live" class="btn btn-primary" id="btn-goto-live">Vào màn quản lý →</RouterLink>
-        <button class="btn btn-danger btn-sm" @click="confirmEndSession" id="btn-end-session">Kết thúc buổi</button>
       </div>
     </section>
 
@@ -146,6 +174,21 @@
         </div>
       </div>
 
+      <!-- Password Modal -->
+      <div v-if="showPasswordModal" class="modal-mask" @click.self="showPasswordModal = false" role="dialog" aria-modal="true">
+        <div class="modal-box" style="max-width: 400px;">
+          <div class="modal-header">
+            <h3>Nhập mật khẩu</h3>
+            <button class="btn btn-icon btn-ghost" @click="showPasswordModal = false">✕</button>
+          </div>
+          <div class="input-group" style="margin-top: var(--sp-4);">
+            <p class="muted" style="margin-bottom: var(--sp-2);">Buổi giao lưu <strong>{{ selectedSession?.title }}</strong> yêu cầu mật khẩu để tham gia.</p>
+            <input type="text" v-model="sessionPassword" placeholder="Nhập mật khẩu..." @keydown.enter="confirmJoin" />
+            <button class="btn btn-primary" style="margin-top: var(--sp-4); width: 100%;" @click="confirmJoin">Tham gia</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Create Session Modal -->
       <div v-if="showCreate" class="modal-mask" @click.self="showCreate = false" role="dialog" aria-modal="true" aria-labelledby="cs-title">
         <div class="modal-box">
@@ -187,6 +230,10 @@
                   <input id="cs-max" v-model.number="form.maxPlayers" type="number" min="4" max="100" />
                 </div>
               </div>
+              <div class="input-group" style="margin-top: var(--sp-2);">
+                <label for="cs-pass">Mật khẩu bảo vệ (tùy chọn)</label>
+                <input id="cs-pass" v-model="form.password" type="text" placeholder="Để trống nếu ai cũng có thể vào" />
+              </div>
               <button class="btn btn-primary btn-lg" style="width:100%;margin-top:var(--sp-4)" @click="createSession" id="btn-confirm-create">
                 🏸 Bắt đầu buổi giao lưu
               </button>
@@ -210,7 +257,57 @@ const sessionStore = useSessionStore()
 const playerStore  = usePlayerStore()
 const authStore    = useAuthStore()
 
-const session = computed(() => sessionStore.session)
+const activeSessions = computed(() => sessionStore.activeSessions)
+
+function getConfirmedCount(s) {
+  return s.attendees?.filter(a => a.status === 'confirmed').length || 0
+}
+
+function getWaitingCount(s) {
+  const allPlaying = new Set()
+  s.courts?.forEach(c => {
+    c.players?.forEach(p => allPlaying.add(p))
+  })
+  const confirmed = s.attendees?.filter(a => a.status === 'confirmed') || []
+  return confirmed.filter(a => !allPlaying.has(a.playerId)).length
+}
+
+const joinId = ref('')
+function joinById() {
+  const token = joinId.value.trim().toUpperCase()
+  if (!token) return
+  const sessionData = sessionStore.publicSharedSessions[token]
+  if (sessionData && sessionData.uid) {
+    joinPublicSession(sessionData)
+  } else {
+    alert('Mã ID không hợp lệ hoặc buổi giao lưu không mở/đã kết thúc.')
+  }
+}
+
+const publicLiveSessions = computed(() => Object.values(sessionStore.publicSharedSessions || {}).sort((a,b) => b.createdAt - a.createdAt))
+
+const showPasswordModal = ref(false)
+const selectedSession = ref(null)
+const sessionPassword = ref('')
+
+function joinPublicSession(s) {
+  if (s.hasPassword) {
+    selectedSession.value = s
+    sessionPassword.value = ''
+    showPasswordModal.value = true
+  } else {
+    router.push(`/shared/${s.uid}/${s.token}`)
+  }
+}
+
+function confirmJoin() {
+  if (sessionPassword.value === selectedSession.value.password) {
+    showPasswordModal.value = false
+    router.push(`/shared/${selectedSession.value.uid}/${selectedSession.value.token}`)
+  } else {
+    alert("Mật khẩu không chính xác!")
+  }
+}
 
 // Modals
 const showCreate    = ref(false)
@@ -224,20 +321,29 @@ const form = ref({
   startTime:  '08:00',
   courtCount: 3,
   maxPlayers: 20,
+  password:   '',
 })
 
-function createSession() {
-  sessionStore.createSession({
-    ...form.value,
-    hostUid: authStore.user?.uid || null,
-    hostBankInfo: authStore.bankInfo || null
-  })
-  showCreate.value = false
-  router.push('/live')
+async function createSession() {
+  if (authStore.user) {
+    const sid = await sessionStore.createSession({
+      title: form.value.title,
+      venue: form.value.venue,
+      date: form.value.date,
+      startTime: form.value.startTime,
+      courtCount: Number(form.value.courtCount),
+      password: form.value.password
+    })
+    showCreate.value = false
+    router.push(`/live/${sid}`)
+  } else {
+    authStore.login()
+  }
 }
 
-function confirmEndSession() {
-  if (confirm('Kết thúc buổi giao lưu? Dữ liệu sẽ được lưu vào lịch sử.')) {
+function confirmEndSession(id) {
+  if (confirm('Bạn có chắc chắn muốn kết thúc buổi giao lưu này? Mọi dữ liệu sẽ được chuyển vào Lịch sử.')) {
+    sessionStore.setActiveSession(id)
     sessionStore.endSession()
   }
 }

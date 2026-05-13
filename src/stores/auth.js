@@ -56,7 +56,18 @@ export const useAuthStore = defineStore('auth', () => {
   async function login() {
     try {
       const result = await signInWithPopup(auth, googleProvider)
-      return result.user
+      const firebaseUser = result.user
+      
+      // Auto-create or merge user profile for Google users
+      const userRef = doc(db, 'users', firebaseUser.uid)
+      await setDoc(userRef, {
+        displayName: firebaseUser.displayName || 'Khách',
+        email: firebaseUser.email,
+        photoURL: firebaseUser.photoURL || '',
+        lastLoginAt: Date.now()
+      }, { merge: true })
+      
+      return firebaseUser
     } catch (error) {
       console.error('Login error:', error)
       throw error

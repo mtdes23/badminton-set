@@ -13,33 +13,12 @@
       <RouterLink to="/" class="btn btn-primary">← Quay lại trang chủ</RouterLink>
     </div>
 
-    <!-- Password Gate -->
-    <div v-else-if="sessionData.sharePassword && !passwordVerified" class="password-gate">
-      <div class="error-icon">🔐</div>
-      <h2>Yêu cầu mật khẩu</h2>
-      <p class="muted">Buổi giao lưu này được bảo vệ bằng mật khẩu.</p>
-      <div class="input-group" style="margin: var(--sp-4) auto; max-width: 300px;">
-        <input 
-          v-model="guestPasswordInput" 
-          type="password" 
-          placeholder="Nhập mật khẩu..." 
-          @keydown.enter="verifyPassword"
-        />
-      </div>
-      <button class="btn btn-primary" @click="verifyPassword" style="margin-bottom: var(--sp-2)">
-        Xác nhận
-      </button>
-      <p v-if="passwordError" class="error-text" style="color: var(--c-red); font-size: 0.9rem;">
-        {{ passwordError }}
-      </p>
-    </div>
-
     <!-- Session content (read-only) -->
     <template v-else>
-      <!-- Read-only badge -->
-      <div class="readonly-banner">
-        <span class="banner-icon">👁️</span>
-        <span>Xem trực tiếp (chỉ đọc)</span>
+      <!-- Role badge -->
+      <div class="readonly-banner" :class="{ 'co-host-banner': authStore.user }">
+        <span class="banner-icon">{{ isHost ? '👑' : (authStore.user ? '🛡️' : '👁️') }}</span>
+        <span>{{ isHost ? 'Quản lý (Host)' : (authStore.user ? 'Quản lý phụ (Co-host)' : 'Xem trực tiếp (chỉ đọc)') }}</span>
       </div>
 
       <!-- Session header -->
@@ -104,7 +83,8 @@
           aria-labelledby="tab-attendance"
           class="panel-content"
         >
-          <div class="attendance-list">
+          <AttendancePanel v-if="authStore.user" />
+          <div v-else class="attendance-list">
             <div v-for="attendee in attendeeDetails" :key="attendee.playerId" class="attendee-row">
               <div class="attendee-avatar">{{ attendee.avatar }}</div>
               <div class="attendee-info">
@@ -156,7 +136,8 @@
           aria-labelledby="tab-courts"
           class="panel-content"
         >
-          <div class="courts-grid">
+          <CourtDiagram v-if="authStore.user" />
+          <div v-else class="courts-grid">
             <div v-for="court in sessionData.courts" :key="court.id" class="court-card card">
               <h3 class="court-label">{{ court.label }}</h3>
               <div class="court-slots">
@@ -179,7 +160,8 @@
           aria-labelledby="tab-costs"
           class="panel-content"
         >
-          <div class="cost-summary">
+          <CostSplitter v-if="authStore.user" />
+          <div v-else class="cost-summary">
             <div class="cost-item">
               <span>Tổng chi phí:</span>
               <span class="cost-value">{{ formatVND(totalExpense) }}</span>
@@ -211,39 +193,38 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { usePlayerStore, useSessionStore } from '@/stores/index.js'
+import { useAuthStore } from '@/stores/auth.js'
 import SkillBadge from '@/components/SkillBadge.vue'
+import AttendancePanel from '@/components/AttendancePanel.vue'
+import CourtDiagram from '@/components/CourtDiagram.vue'
+import CostSplitter from '@/components/CostSplitter.vue'
 
 const route = useRoute()
 const playerStore = usePlayerStore()
+const authStore = useAuthStore()
 
 const sessionStore = useSessionStore()
 const loading = computed(() => sessionStore.loading)
-const sessionData = computed(() => sessionStore.session)
+const sessionData = computed(() => {
+  return sessionStore.activeSessions.find(s => s.shareToken === shareToken) || null
+})
 const activeTab = ref('attendance')
 
 const shareUid = route.params.uid?.trim().replace(/\/$/, '')
 const shareToken = route.params.token?.trim().replace(/\/$/, '')
 
+const isHost = computed(() => {
+  return authStore.user && sessionData.value && authStore.user.uid === sessionData.value.hostUid
+})
+
 const eMsg = ref('')
 
-// Password verification
-const passwordVerified = ref(false)
-const guestPasswordInput = ref('')
-const passwordError = ref('')
 
-function verifyPassword() {
-  if (guestPasswordInput.value === sessionData.value?.sharePassword) {
-    passwordVerified.value = true
-    passwordError.value = ''
-  } else {
-    passwordError.value = 'Mật khẩu không chính xác!'
-  }
-}
 
 onMounted(() => {
   if (!shareUid || !shareToken) {
@@ -256,10 +237,13 @@ onMounted(() => {
 })
 
 // Validate token for guests
-watch(() => sessionStore.shareToken, (newShareToken) => {
-  if (!loading.value && sessionData.value) {
-    if (!newShareToken || newShareToken !== shareToken) {
+watch(() => sessionStore.loading, (isLoading) => {
+  if (!isLoading && sessionStore.activeSessions.length > 0) {
+    if (!sessionData.value) {
       eMsg.value = 'Link chia sẻ không hợp lệ hoặc đã bị quản lý thu hồi.'
+    } else {
+      // Set active session for the components to use
+      sessionStore.setActiveSession(sessionData.value.id)
     }
   }
 })
@@ -424,8 +408,7 @@ function formatVNDShort(n) {
 }
 
 .loading-state,
-.error-state,
-.password-gate {
+.error-state {
   display: flex;
   flex-direction: column;
   align-items: center;

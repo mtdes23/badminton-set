@@ -76,8 +76,8 @@
               <p class="modal-desc muted">Tạo một link để khách có thể xem và tự điểm danh.</p>
               
               <div class="input-group" style="margin-bottom: var(--sp-4);">
-                <label for="share-password">Mật khẩu bảo vệ (Không bắt buộc)</label>
-                <input id="share-password" v-model="newSharePassword" type="text" placeholder="Nhập mật khẩu nếu cần..." />
+                <label>Mật khẩu bảo vệ (tùy chọn)</label>
+                <input type="text" v-model="sharePassword" placeholder="Để trống nếu ai cũng có thể vào" />
               </div>
 
               <button @click="generateShare" class="btn btn-primary btn-lg" :disabled="generatingShare" style="width: 100%">
@@ -86,6 +86,12 @@
             </div>
 
             <div v-else class="share-content">
+              <div style="text-align: center; margin-bottom: var(--sp-2);">
+                <p class="muted" style="margin-bottom: 4px;">Mã phòng (ID) tham gia nhanh:</p>
+                <div style="font-size: 1.8rem; font-family: monospace; font-weight: bold; letter-spacing: 2px; color: var(--c-lime);">
+                  {{ store.shareToken }}
+                </div>
+              </div>
               <div class="share-url-box">
                 <input 
                   type="text" 
@@ -99,13 +105,7 @@
                 </button>
               </div>
 
-              <div class="input-group" style="margin-bottom: var(--sp-4); margin-top: var(--sp-4);">
-                <label>Mật khẩu hiện tại</label>
-                <div style="display:flex; gap: 8px;">
-                  <input v-model="newSharePassword" type="text" placeholder="Không có mật khẩu" style="flex: 1;" />
-                  <button @click="updatePassword" class="btn btn-ghost" :disabled="updatingPassword">Lưu</button>
-                </div>
-              </div>
+
 
               <div class="share-actions">
                 <button 
@@ -223,6 +223,12 @@ const perPersonCost  = computed(() => store.perPersonCost)
 
 const isGuest = computed(() => route.name === 'shared')
 
+watch(() => route.params.id, (newId) => {
+  if (route.name === 'live') {
+    store.setActiveSession(newId)
+  }
+}, { immediate: true })
+
 onMounted(() => {
   if (route.name === 'shared' && route.params.uid) {
     store.bindSharedSession(route.params.uid)
@@ -246,14 +252,9 @@ const showQR = ref(false)
 const generatingShare = ref(false)
 const revokingShare = ref(false)
 const copiedLink = ref(false)
+const sharePassword = ref('')
 
-const newSharePassword = ref('')
-const updatingPassword = ref(false)
 
-// Watch session password to sync input
-watch(() => session.value?.sharePassword, (val) => {
-  if (val !== undefined) newSharePassword.value = val || ''
-}, { immediate: true })
 
 const TABS = computed(() => [
   { id: 'attendance', icon: '📋', label: 'Điểm danh', badge: confirmedCount.value || null },
@@ -264,7 +265,7 @@ const TABS = computed(() => [
 async function generateShare() {
   generatingShare.value = true
   try {
-    const token = await store.generateShareToken(newSharePassword.value)
+    const token = await store.generateShareToken(sharePassword.value)
     console.log('Generated token:', token)
   } catch (error) {
     console.error('Error generating share token:', error)
@@ -274,17 +275,7 @@ async function generateShare() {
   }
 }
 
-async function updatePassword() {
-  updatingPassword.value = true
-  try {
-    await store.updateSharePassword(newSharePassword.value)
-    alert('Đã cập nhật mật khẩu chia sẻ!')
-  } catch (error) {
-    alert('Lỗi khi cập nhật mật khẩu')
-  } finally {
-    updatingPassword.value = false
-  }
-}
+
 
 async function revokeShare() {
   if (!confirm('Bạn có chắc muốn hủy chia sẻ? Các link cũ sẽ không còn hoạt động.')) return

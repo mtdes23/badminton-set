@@ -47,17 +47,16 @@
           </div>
         </div>
       </template>
-      <button v-else @click="showAuthModal = true" class="btn btn-ghost btn-login" :disabled="authStore.loading">
-        <span v-if="authStore.loading">...</span>
+      <button v-else @click="handleLogin" class="btn btn-ghost btn-login" :disabled="authStore.loading || isLoggingIn">
+        <span v-if="authStore.loading || isLoggingIn">Đang xử lý...</span>
         <template v-else>
-          <span class="btn-icon">🔑</span>
-          <span class="btn-text">Đăng nhập</span>
+          <span class="btn-icon">🔵</span>
+          <span class="btn-text">Đăng nhập với Google</span>
         </template>
       </button>
     </div>
 
-    <!-- Auth Modal (Login/Signup) -->
-    <AuthModal v-model="showAuthModal" />
+    <!-- Auth Modal removed for optimized Google-only login -->
 
     <!-- Bank Settings Modal -->
     <Teleport to="body">
@@ -100,7 +99,6 @@ import { ref, computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSessionStore, BANK_LIST } from '@/stores/index.js'
 import { useAuthStore } from '@/stores/auth.js'
-import AuthModal from '@/components/AuthModal.vue'
 
 const router  = useRouter()
 const store   = useSessionStore()
@@ -108,9 +106,22 @@ const authStore = useAuthStore()
 
 const session = computed(() => store.session)
 const showUserMenu = ref(false)
-const showAuthModal = ref(false)
 const showBankModal = ref(false)
 const isSavingBank = ref(false)
+const isLoggingIn = ref(false)
+
+async function handleLogin() {
+  isLoggingIn.value = true
+  try {
+    await authStore.login()
+  } catch (error) {
+    if (error.code !== 'auth/popup-closed-by-user') {
+      alert('Đăng nhập thất bại: ' + error.message)
+    }
+  } finally {
+    isLoggingIn.value = false
+  }
+}
 
 const bankForm = reactive({
   bankId: '',
