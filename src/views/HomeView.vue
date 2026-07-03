@@ -11,7 +11,7 @@
           <span class="hero-title-main">Badminton</span>
           <span class="hero-title-accent">Setup</span>
         </h1>
-        <p class="hero-desc">
+        <p v-once class="hero-desc">
           Số hóa buổi giao lưu: điểm danh thời gian thực, sơ đồ sân kéo thả,
           ghép cặp thông minh, chia tiền minh bạch.
         </p>
@@ -43,7 +43,7 @@
     </section>
 
     <!-- Feature cards -->
-    <section class="features-section" aria-labelledby="features-heading">
+    <section v-once class="features-section" aria-labelledby="features-heading">
       <h2 id="features-heading" class="sr-only">Tính năng</h2>
       <div class="features-grid">
         <div

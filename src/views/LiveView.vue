@@ -148,7 +148,7 @@
               <button class="btn btn-icon btn-ghost" @click="showQR = false" aria-label="Đóng">✕</button>
             </div>
             <div class="qr-content">
-              <canvas id="qrCanvas" class="qr-canvas"></canvas>
+              <canvas ref="qrCanvasRef" class="qr-canvas"></canvas>
               <p class="muted" style="text-align: center; margin-top: var(--sp-3);">Quét mã này để xem buổi giao lưu</p>
             </div>
           </div>
@@ -176,30 +176,15 @@
 
       <!-- Tab panels -->
       <div class="live-panels">
-        <div
-          v-show="activeTab === 'attendance'"
-          id="panel-attendance"
-          role="tabpanel"
-          aria-labelledby="tab-attendance"
-        >
-          <AttendancePanel />
-        </div>
-        <div
-          v-show="activeTab === 'courts'"
-          id="panel-courts"
-          role="tabpanel"
-          aria-labelledby="tab-courts"
-        >
-          <CourtDiagram />
-        </div>
-        <div
-          v-show="activeTab === 'costs'"
-          id="panel-costs"
-          role="tabpanel"
-          aria-labelledby="tab-costs"
-        >
-          <CostSplitter />
-        </div>
+        <KeepAlive>
+          <AttendancePanel v-if="activeTab === 'attendance'" />
+        </KeepAlive>
+        <KeepAlive>
+          <CourtDiagram v-if="activeTab === 'courts'" />
+        </KeepAlive>
+        <KeepAlive>
+          <CostSplitter v-if="activeTab === 'costs'" />
+        </KeepAlive>
       </div>
     </template>
   </div>
@@ -217,6 +202,7 @@ import { formatDate, formatVNDShort } from '@/utils.js'
 const route          = useRoute()
 const router         = useRouter()
 const store          = useSessionStore()
+const qrCanvasRef    = ref(null)
 const session        = computed(() => store.session)
 const confirmedCount = computed(() => store.confirmedCount)
 const waitingCount   = computed(() => store.waitingPlayers.length)
@@ -328,9 +314,8 @@ function shareViaMail() {
 // Generate QR Code when modal opens
 watch(showQR, async (newVal) => {
   if (newVal && store.shareUrl) {
-    // Dynamically import QRCode library
     await import('qrcode').then(QRCode => {
-      const canvas = document.getElementById('qrCanvas')
+      const canvas = qrCanvasRef.value
       if (canvas) {
         QRCode.default.toCanvas(canvas, store.shareUrl, { width: 250 }, (error) => {
           if (error) console.error('QR Code error:', error)

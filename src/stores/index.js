@@ -43,9 +43,9 @@ function buildCourts(count) {
   }))
 }
 
-/** Deep-clone via JSON so nested arrays/objects are safe to mutate */
+/** Deep-clone via structuredClone (faster than JSON round-trip) */
 function clone(obj) {
-  return JSON.parse(JSON.stringify(obj))
+  return structuredClone(obj)
 }
 
 // ─── Player Store ─────────────────────────────────────────────────────────────
@@ -126,11 +126,7 @@ export const usePlayerStore = defineStore('players', () => {
     }
   }
 
-  const skillInfo = computed(() => (skill) =>
-    SKILL_LEVELS.find(s => s.value === skill) || SKILL_LEVELS[1]
-  )
-
-  return { players, loading, addPlayer, updatePlayer, removePlayer, skillInfo }
+  return { players, loading, addPlayer, updatePlayer, removePlayer }
 })
 
 // ─── Session Store ────────────────────────────────────────────────────────────
@@ -164,8 +160,9 @@ export const useSessionStore = defineStore('session', () => {
   // Public mirror for shared sessions
   const publicSharedSessions = ref({})
 
-  // Listen to global app state to get public shared sessions
-  onSnapshot(doc(db, 'app', 'state'), (snap) => {
+  // Listen to global app state to get public shared sessions (store unsub)
+  let unsubPublic = null
+  unsubPublic = onSnapshot(doc(db, 'app', 'state'), (snap) => {
     if (snap.exists()) {
       publicSharedSessions.value = snap.data().sharedSessions || {}
     }
@@ -322,51 +319,56 @@ export const useSessionStore = defineStore('session', () => {
   // ── Auto-process Self-Attendance Requests ─────────────────────────────────
   
   let playerStoreInstance = null
-  watch(() => {
+  
+  // Only track the attending_session field, not the entire players array
+  const pendingAttendanceIds = computed(() => {
     if (!playerStoreInstance) {
       playerStoreInstance = usePlayerStore()
     }
     return playerStoreInstance.players
-  }, async (newPlayers) => {
-    if (!session.value || !authStore.user || !newPlayers || newPlayers.length === 0) return
-    // Only process requests if we are the host of the active session
+      .filter(p => p.attending_session)
+      .map(p => ({ id: p.id, attending_session: p.attending_session }))
+  })
+  
+  watch(pendingAttendanceIds, async (pending) => {
+    if (!session.value || !authStore.user || !pending || pending.length === 0) return
     if (session.value.hostUid !== authStore.user.uid) return
     
     const sessionId = session.value.id
-    const playersToProcess = newPlayers.filter(p => p.attending_session === sessionId)
+    const playersToProcess = pending.filter(p => p.attending_session === sessionId)
     
-    if (playersToProcess.length > 0) {
-      console.log('Processing self-attendance for:', playersToProcess.map(p => p.name))
-      
-      await _patch(s => {
-        playersToProcess.forEach(player => {
-          const attendee = s.attendees.find(a => a.playerId === player.id)
-          if (attendee) {
-            attendee.status = 'confirmed'
-          } else {
-            s.attendees.push({
-              playerId: player.id,
-              status: 'confirmed',
-              type: 'guest',
-              payment: 0
-            })
-          }
-        })
-        return s
-      })
-      
-      // Clear flags from players collection to acknowledge
-      for (const player of playersToProcess) {
-        try {
-          await updateDoc(doc(db, 'users', authStore.user.uid, 'players', player.id), {
-            attending_session: null
+    if (playersToProcess.length === 0) return
+    
+    console.log('Processing self-attendance for:', playersToProcess.length, 'players')
+    
+    await _patch(s => {
+      playersToProcess.forEach(player => {
+        const attendee = s.attendees.find(a => a.playerId === player.id)
+        if (attendee) {
+          attendee.status = 'confirmed'
+        } else {
+          s.attendees.push({
+            playerId: player.id,
+            status: 'confirmed',
+            type: 'guest',
+            payment: 0
           })
-        } catch (e) {
-          console.error('Error clearing attendance flag:', e)
         }
+      })
+      return s
+    })
+    
+    // Clear flags from players collection to acknowledge
+    for (const player of playersToProcess) {
+      try {
+        await updateDoc(doc(db, 'users', authStore.user.uid, 'players', player.id), {
+          attending_session: null
+        })
+      } catch (e) {
+        console.error('Error clearing attendance flag:', e)
       }
     }
-  }, { deep: true })
+  })
 
   // ── Attendance ────────────────────────────────────────────────────────────
 
@@ -551,9 +553,12 @@ export const useSessionStore = defineStore('session', () => {
 
   const waitingPlayers = computed(() => {
     if (!session.value) return []
-    const onCourt = new Set(
-      session.value.courts.flatMap(c => c.slots).filter(Boolean)
-    )
+    const onCourt = new Set()
+    for (const court of session.value.courts) {
+      for (const slot of court.slots) {
+        if (slot) onCourt.add(slot)
+      }
+    }
     return session.value.attendees
       .filter(a => a.status === 'confirmed' && !onCourt.has(a.playerId))
       .map(a => a.playerId)

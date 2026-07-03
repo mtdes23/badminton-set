@@ -174,9 +174,8 @@ const navLinks = [
   gap: var(--sp-6);
   padding: 0 var(--sp-8);
   height: 60px;
-  background: rgba(9, 9, 9, 0.92);
+  background: #0c0c0c;
   border-bottom: 1px solid var(--c-border);
-  backdrop-filter: blur(12px);
 }
 
 .nav-brand {

@@ -1,6 +1,10 @@
+/** Cached formatters — avoid creating new Intl instances per call */
+const _vndFull = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' })
+const _vndShort = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })
+
 export function formatVND(n) {
   if (!n) return '0 ₫'
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n)
+  return _vndFull.format(n)
 }
 
 export function formatVNDShort(n) {

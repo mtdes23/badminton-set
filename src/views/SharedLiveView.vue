@@ -76,117 +76,123 @@
 
       <!-- Tab panels - read-only versions -->
       <div class="live-panels">
-        <div
-          v-show="activeTab === 'attendance'"
-          id="panel-attendance"
-          role="tabpanel"
-          aria-labelledby="tab-attendance"
-          class="panel-content"
-        >
-          <AttendancePanel v-if="authStore.user" />
-          <div v-else class="attendance-list">
-            <div v-for="attendee in attendeeDetails" :key="attendee.playerId" class="attendee-row">
-              <div class="attendee-avatar">{{ attendee.avatar }}</div>
-              <div class="attendee-info">
-                <div class="attendee-name">{{ attendee.name }}</div>
-                <SkillBadge :skill="attendee.skill" />
+        <KeepAlive>
+          <div
+            v-if="activeTab === 'attendance'"
+            id="panel-attendance"
+            role="tabpanel"
+            aria-labelledby="tab-attendance"
+            class="panel-content"
+          >
+            <AttendancePanel v-if="authStore.user" />
+            <div v-else class="attendance-list">
+              <div v-for="attendee in attendeeDetails" :key="attendee.playerId" class="attendee-row">
+                <div class="attendee-avatar">{{ attendee.avatar }}</div>
+                <div class="attendee-info">
+                  <div class="attendee-name">{{ attendee.name }}</div>
+                  <SkillBadge :skill="attendee.skill" />
+                </div>
+                <div class="attendee-status" :class="attendee.status">
+                  {{ attendee.status === 'confirmed' ? '✓ Có mặt' : '' }}
+                </div>
               </div>
-              <div class="attendee-status" :class="attendee.status">
-                {{ attendee.status === 'confirmed' ? '✓ Có mặt' : '' }}
+              <div v-if="!attendeeDetails.length" class="muted" style="text-align: center; padding: var(--sp-6)">
+                Chưa có người điểm danh
               </div>
-            </div>
-            <div v-if="!attendeeDetails.length" class="muted" style="text-align: center; padding: var(--sp-6)">
-              Chưa có người điểm danh
-            </div>
-            
-            <div class="self-attend-box">
-              <h4>Bạn có mặt ở sân?</h4>
-              <p class="muted" style="margin-bottom: var(--sp-3); font-size: 0.85rem">Chọn tên của bạn để báo có mặt với quản lý</p>
               
-              <div class="self-attend-form" v-if="!selfAttendSuccess">
-                <input 
-                  v-model="guestInputName" 
-                  type="text" 
-                  class="player-select" 
-                  placeholder="Nhập tên của bạn..." 
-                  list="players-list"
-                  @keydown.enter="submitAttendance"
-                />
-                <datalist id="players-list">
-                  <option v-for="p in allPlayers" :key="p.id" :value="p.name"></option>
-                </datalist>
-                <button class="btn btn-primary" @click="submitAttendance" :disabled="!guestInputName.trim() || isSubmitting">
-                  {{ isSubmitting ? 'Đang gửi...' : 'Báo có mặt' }}
-                </button>
-              </div>
-              <div v-else class="success-message">
-                ✅ Đã gửi! Hệ thống của quản lý sẽ tự động thêm bạn vào danh sách. (Bạn có thể cần xin link mới để thấy tên mình cập nhật).
-              </div>
-              <div v-if="selfAttendError" class="error-text" style="color: var(--c-red); font-size: 0.85rem; margin-top: var(--sp-2)">
-                {{ selfAttendError }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-show="activeTab === 'courts'"
-          id="panel-courts"
-          role="tabpanel"
-          aria-labelledby="tab-courts"
-          class="panel-content"
-        >
-          <CourtDiagram v-if="authStore.user" />
-          <div v-else class="courts-grid">
-            <div v-for="court in sessionData.courts" :key="court.id" class="court-card card">
-              <h3 class="court-label">{{ court.label }}</h3>
-              <div class="court-slots">
-                <div v-for="(playerId, idx) in court.slots" :key="idx" class="court-slot">
-                  <div v-if="playerId" class="player-in-slot">
-                    <div class="slot-avatar">{{ playerMap[playerId]?.avatar }}</div>
-                    <div class="slot-name">{{ playerMap[playerId]?.name }}</div>
-                  </div>
-                  <div v-else class="slot-empty">Trống</div>
+              <div class="self-attend-box">
+                <h4>Bạn có mặt ở sân?</h4>
+                <p class="muted" style="margin-bottom: var(--sp-3); font-size: 0.85rem">Chọn tên của bạn để báo có mặt với quản lý</p>
+                
+                <div class="self-attend-form" v-if="!selfAttendSuccess">
+                  <input 
+                    v-model="guestInputName" 
+                    type="text" 
+                    class="player-select" 
+                    placeholder="Nhập tên của bạn..." 
+                    list="players-list"
+                    @keydown.enter="submitAttendance"
+                  />
+                  <datalist id="players-list">
+                    <option v-for="p in allPlayers" :key="p.id" :value="p.name"></option>
+                  </datalist>
+                  <button class="btn btn-primary" @click="submitAttendance" :disabled="!guestInputName.trim() || isSubmitting">
+                    {{ isSubmitting ? 'Đang gửi...' : 'Báo có mặt' }}
+                  </button>
+                </div>
+                <div v-else class="success-message">
+                  ✅ Đã gửi! Hệ thống của quản lý sẽ tự động thêm bạn vào danh sách. (Bạn có thể cần xin link mới để thấy tên mình cập nhật).
+                </div>
+                <div v-if="selfAttendError" class="error-text" style="color: var(--c-red); font-size: 0.85rem; margin-top: var(--sp-2)">
+                  {{ selfAttendError }}
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </KeepAlive>
 
-        <div
-          v-show="activeTab === 'costs'"
-          id="panel-costs"
-          role="tabpanel"
-          aria-labelledby="tab-costs"
-          class="panel-content"
-        >
-          <CostSplitter v-if="authStore.user" />
-          <div v-else class="cost-summary">
-            <div class="cost-item">
-              <span>Tổng chi phí:</span>
-              <span class="cost-value">{{ formatVND(totalExpense) }}</span>
-            </div>
-            <div class="cost-item">
-              <span>Số người:</span>
-              <span class="cost-value">{{ confirmedCount }}</span>
-            </div>
-            <div class="cost-item highlight">
-              <span>Chi phí/người:</span>
-              <span class="cost-value">{{ formatVND(perPersonCost) }}</span>
-            </div>
-            <hr class="divider" />
-            <div v-if="sessionData.expenses.length" class="expenses-list">
-              <h4>Chi tiết</h4>
-              <div v-for="exp in sessionData.expenses" :key="exp.id" class="expense-row">
-                <span>{{ exp.label }}</span>
-                <span>{{ formatVND(exp.amount) }}</span>
+        <KeepAlive>
+          <div
+            v-if="activeTab === 'courts'"
+            id="panel-courts"
+            role="tabpanel"
+            aria-labelledby="tab-courts"
+            class="panel-content"
+          >
+            <CourtDiagram v-if="authStore.user" />
+            <div v-else class="courts-grid">
+              <div v-for="court in sessionData.courts" :key="court.id" class="court-card card">
+                <h3 class="court-label">{{ court.label }}</h3>
+                <div class="court-slots">
+                  <div v-for="(playerId, idx) in court.slots" :key="idx" class="court-slot">
+                    <div v-if="playerId" class="player-in-slot">
+                      <div class="slot-avatar">{{ playerMap[playerId]?.avatar }}</div>
+                      <div class="slot-name">{{ playerMap[playerId]?.name }}</div>
+                    </div>
+                    <div v-else class="slot-empty">Trống</div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div v-else class="muted" style="text-align: center; padding: var(--sp-4)">
-              Chưa có chi phí nào
+          </div>
+        </KeepAlive>
+
+        <KeepAlive>
+          <div
+            v-if="activeTab === 'costs'"
+            id="panel-costs"
+            role="tabpanel"
+            aria-labelledby="tab-costs"
+            class="panel-content"
+          >
+            <CostSplitter v-if="authStore.user" />
+            <div v-else class="cost-summary">
+              <div class="cost-item">
+                <span>Tổng chi phí:</span>
+                <span class="cost-value">{{ formatVND(totalExpense) }}</span>
+              </div>
+              <div class="cost-item">
+                <span>Số người:</span>
+                <span class="cost-value">{{ confirmedCount }}</span>
+              </div>
+              <div class="cost-item highlight">
+                <span>Chi phí/người:</span>
+                <span class="cost-value">{{ formatVND(perPersonCost) }}</span>
+              </div>
+              <hr class="divider" />
+              <div v-if="sessionData.expenses.length" class="expenses-list">
+                <h4>Chi tiết</h4>
+                <div v-for="exp in sessionData.expenses" :key="exp.id" class="expense-row">
+                  <span>{{ exp.label }}</span>
+                  <span>{{ formatVND(exp.amount) }}</span>
+                </div>
+              </div>
+              <div v-else class="muted" style="text-align: center; padding: var(--sp-4)">
+                Chưa có chi phí nào
+              </div>
             </div>
           </div>
-        </div>
+        </KeepAlive>
       </div>
     </template>
   </div>
