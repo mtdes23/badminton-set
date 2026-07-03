@@ -130,6 +130,7 @@
 import { ref, computed } from 'vue'
 import { useSessionStore, BANK_LIST } from '@/stores/index.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { formatVND } from '@/utils.js'
 
 const store = useSessionStore()
 const authStore = useAuthStore()
@@ -180,11 +181,6 @@ function removeExpense(id) {
 function applyPreset(preset) {
   newLabel.value  = preset.label.replace(/^[^\s]+\s/, '')
   newAmount.value = preset.amount
-}
-
-function formatVND(n) {
-  if (!n) return '0 ₫'
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n)
 }
 
 function expenseIcon(label) {

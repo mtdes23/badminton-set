@@ -321,7 +321,7 @@ const navLinks = [
   flex-direction: column;
   gap: var(--sp-4);
   z-index: 100;
-  animation: slideDown FadeIn var(--t-fast) var(--ease-snap);
+  animation: fadeIn var(--t-fast) var(--ease-sport);
 }
 
 .dropdown-header {

@@ -33,7 +33,7 @@
             v-model="joinId" 
             type="text" 
             placeholder="Nhập mã ID phòng (nếu có)..." 
-            style="flex: 1; padding: 0.8rem 1rem; border-radius: var(--r-md); border: 1px solid var(--c-border); background: var(--c-bg-secondary); color: var(--c-text);" 
+            style="flex: 1; padding: 0.8rem 1rem; border-radius: var(--r-md); border: 1px solid var(--c-border); background: var(--c-surface-2); color: var(--c-text);" 
             @keydown.enter="joinById" 
           />
           <button class="btn btn-primary" style="padding: 0.8rem 1.2rem;" @click="joinById">Vào</button>
@@ -251,6 +251,7 @@ import { useRouter } from 'vue-router'
 import SkillBadge from '@/components/SkillBadge.vue'
 import { useSessionStore, usePlayerStore, SKILL_LEVELS } from '@/stores/index.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { formatDate } from '@/utils.js'
 
 const router       = useRouter()
 const sessionStore = useSessionStore()
@@ -364,11 +365,6 @@ function addMe() {
     name: authStore.user.displayName, 
     skill: 'medium' 
   })
-}
-
-function formatDate(d) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })
 }
 
 const FEATURES = [

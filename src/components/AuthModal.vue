@@ -313,7 +313,7 @@ function validateUsername() {
   cursor: pointer;
   font-weight: 600;
   font-size: 0.95rem;
-  color: var(--c-text-secondary);
+  color: var(--c-text-muted);
   transition: all 0.2s ease;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -324,8 +324,8 @@ function validateUsername() {
 }
 
 .auth-tab.active {
-  color: var(--c-primary);
-  border-bottom-color: var(--c-primary);
+  color: var(--c-lime);
+  border-bottom-color: var(--c-lime);
 }
 
 .error-message {
@@ -367,14 +367,14 @@ function validateUsername() {
   padding: var(--sp-3);
   border: 1px solid var(--c-border);
   border-radius: 6px;
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   font-size: 0.9rem;
   transition: all 0.2s ease;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: var(--c-primary);
+  border-color: var(--c-lime);
   background: var(--c-bg);
 }
 
@@ -401,7 +401,7 @@ function validateUsername() {
 
 .password-hint {
   font-size: 0.8rem;
-  color: var(--c-text-secondary);
+  color: var(--c-text-muted);
 }
 
 .btn-lg {
@@ -411,7 +411,7 @@ function validateUsername() {
 }
 
 .btn-secondary {
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   border: 1px solid var(--c-border);
   color: var(--c-text);
   display: flex;
@@ -422,17 +422,19 @@ function validateUsername() {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--c-primary);
+  background: var(--c-lime);
   color: white;
-  border-color: var(--c-primary);
+  border-color: var(--c-lime);
 }
 
 .auth-divider {
   text-align: center;
-  color: var(--c-text-secondary);
+  color: var(--c-text-muted);
   font-size: 0.85rem;
   position: relative;
-  margin: var(--sp-2) 0;
+  background: var(--c-surface-2);
+  margin: var(--sp-4) calc(-1 * var(--sp-6));
+  padding: var(--sp-3) var(--sp-4);
 }
 
 .auth-divider::before {
@@ -443,13 +445,5 @@ function validateUsername() {
   right: 0;
   height: 1px;
   background: var(--c-border);
-}
-
-.auth-divider {
-  background: var(--c-bg-secondary);
-  padding: 0 var(--sp-2);
-  margin: var(--sp-4) -var(--sp-6);
-  padding: var(--sp-3) var(--sp-4);
-  position: relative;
 }
 </style>

@@ -31,7 +31,7 @@
           <div>
             <h1 class="live-title">{{ sessionData.title }}</h1>
             <div class="live-meta muted">
-              {{ sessionData.venue }} · {{ formatDate(sessionData.date) }} · {{ sessionData.startTime }}
+              {{ sessionData.venue }} · {{ formatDate(sessionData.date, 'short') }} · {{ sessionData.startTime }}
             </div>
           </div>
         </div>
@@ -203,6 +203,7 @@ import SkillBadge from '@/components/SkillBadge.vue'
 import AttendancePanel from '@/components/AttendancePanel.vue'
 import CourtDiagram from '@/components/CourtDiagram.vue'
 import CostSplitter from '@/components/CostSplitter.vue'
+import { formatDate, formatVND, formatVNDShort } from '@/utils.js'
 
 const route = useRoute()
 const playerStore = usePlayerStore()
@@ -361,23 +362,6 @@ const TABS = computed(() => [
   { id: 'courts',     icon: '🏟️', label: 'Sơ đồ sân', badge: waitingCount.value ? `${waitingCount.value} chờ` : null },
   { id: 'costs',      icon: '💰', label: 'Chi phí',   badge: null },
 ])
-
-function formatDate(d) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })
-}
-
-function formatVND(n) {
-  if (!n) return '0₫'
-  return n.toLocaleString('vi-VN') + '₫'
-}
-
-function formatVNDShort(n) {
-  if (!n) return '0₫'
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'tr'
-  if (n >= 1000)    return Math.round(n / 1000) + 'k'
-  return n + '₫'
-}
 </script>
 
 <style scoped>
@@ -422,7 +406,7 @@ function formatVNDShort(n) {
   width: 48px;
   height: 48px;
   border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top-color: var(--c-primary);
+  border-top-color: var(--c-lime);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -442,7 +426,7 @@ function formatVNDShort(n) {
   align-items: flex-start;
   gap: var(--sp-6);
   padding: var(--sp-6);
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   border-radius: 12px;
   border: 1px solid var(--c-border);
 }
@@ -528,7 +512,7 @@ function formatVNDShort(n) {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--c-text-secondary);
+  color: var(--c-text-muted);
   border-bottom: 2px solid transparent;
   transition: all 0.2s ease;
   display: flex;
@@ -542,8 +526,8 @@ function formatVNDShort(n) {
 }
 
 .live-tab.active {
-  color: var(--c-primary);
-  border-bottom-color: var(--c-primary);
+  color: var(--c-lime);
+  border-bottom-color: var(--c-lime);
 }
 
 .tab-badge {
@@ -580,7 +564,7 @@ function formatVNDShort(n) {
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3);
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   border-radius: 8px;
   border: 1px solid var(--c-border);
 }
@@ -639,7 +623,7 @@ function formatVNDShort(n) {
 
 .court-slot {
   min-height: 100px;
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   border: 1px dashed var(--c-border);
   border-radius: 6px;
   padding: var(--sp-2);
@@ -677,12 +661,12 @@ function formatVNDShort(n) {
 }
 
 .slot-empty {
-  color: var(--c-text-secondary);
+  color: var(--c-text-muted);
   font-size: 0.85rem;
 }
 
 .cost-summary {
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   border: 1px solid var(--c-border);
   border-radius: 8px;
   padding: var(--sp-6);
@@ -700,7 +684,7 @@ function formatVNDShort(n) {
 .cost-item.highlight {
   font-weight: 700;
   font-size: 1.1rem;
-  color: var(--c-primary);
+  color: var(--c-lime);
   padding-top: var(--sp-4);
   padding-bottom: var(--sp-4);
   border-top: 1px solid var(--c-border);
@@ -710,7 +694,7 @@ function formatVNDShort(n) {
 
 .cost-value {
   font-weight: 700;
-  color: var(--c-primary);
+  color: var(--c-lime);
 }
 
 .expenses-list {
@@ -720,7 +704,7 @@ function formatVNDShort(n) {
 .expenses-list h4 {
   font-size: 0.9rem;
   margin-bottom: var(--sp-2);
-  color: var(--c-text-secondary);
+  color: var(--c-text-muted);
 }
 
 .expense-row {
@@ -728,7 +712,7 @@ function formatVNDShort(n) {
   justify-content: space-between;
   padding: var(--sp-2) 0;
   font-size: 0.85rem;
-  border-bottom: 1px solid var(--c-border-light);
+  border-bottom: 1px solid var(--c-border);
 }
 
 .expense-row:last-child {

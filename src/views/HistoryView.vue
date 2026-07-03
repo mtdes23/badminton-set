@@ -21,7 +21,7 @@
         <div class="hc-header">
           <div>
             <h3 class="hc-title">{{ s.title }}</h3>
-            <div class="hc-meta muted">{{ s.venue }} · {{ formatDate(s.date) }}</div>
+            <div class="hc-meta muted">{{ s.venue }} · {{ formatDateFull(s.date) }}</div>
           </div>
           <div class="hc-status">
             <span class="tag">{{ formatTime(s.closedAt) }}</span>
@@ -64,24 +64,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useSessionStore } from '@/stores/index.js'
+import { formatVND, formatDateFull, formatTime } from '@/utils.js'
 
 const store   = useSessionStore()
 const history = computed(() => store.history)
-
-function formatDate(d) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function formatTime(ts) {
-  if (!ts) return ''
-  return new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatVND(n) {
-  if (!n) return '0 ₫'
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n)
-}
 
 function totalCost(s) {
   return s.expenses?.reduce((sum, e) => sum + e.amount, 0) ?? 0

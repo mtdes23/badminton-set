@@ -212,6 +212,7 @@ import AttendancePanel from '@/components/AttendancePanel.vue'
 import CourtDiagram    from '@/components/CourtDiagram.vue'
 import CostSplitter    from '@/components/CostSplitter.vue'
 import { useSessionStore } from '@/stores/index.js'
+import { formatDate, formatVNDShort } from '@/utils.js'
 
 const route          = useRoute()
 const router         = useRouter()
@@ -338,18 +339,6 @@ watch(showQR, async (newVal) => {
     })
   }
 })
-
-function formatDate(d) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })
-}
-
-function formatVNDShort(n) {
-  if (!n) return '0₫'
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'tr'
-  if (n >= 1000)    return Math.round(n / 1000) + 'k'
-  return n + '₫'
-}
 </script>
 
 <style scoped>
@@ -530,7 +519,7 @@ function formatVNDShort(n) {
   display: flex;
   gap: var(--sp-2);
   padding: var(--sp-3);
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   border: 1px solid var(--c-border);
   border-radius: 8px;
 }
@@ -553,7 +542,7 @@ function formatVNDShort(n) {
 
 .btn-share-method {
   padding: var(--sp-3);
-  background: var(--c-bg-secondary);
+  background: var(--c-surface-2);
   border: 1px solid var(--c-border);
   border-radius: 8px;
   cursor: pointer;
@@ -563,9 +552,9 @@ function formatVNDShort(n) {
 }
 
 .btn-share-method:hover {
-  background: var(--c-primary);
+  background: var(--c-lime);
   color: white;
-  border-color: var(--c-primary);
+  border-color: var(--c-lime);
 }
 
 .divider {
