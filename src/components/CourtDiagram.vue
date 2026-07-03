@@ -482,4 +482,20 @@ function autoFillCourt(court) {
 .slot-player:hover .slot-remove { opacity: 1; }
 
 .auto-suggest-btn { align-self: flex-start; }
+
+@media (max-width: 640px) {
+  .court-diagram-header { flex-direction: column; gap: var(--sp-2); }
+  .waiting-chip { padding: var(--sp-1) var(--sp-2); font-size: 0.75rem; }
+  .chip-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .courts-grid { grid-template-columns: 1fr; }
+  .court-unit { padding: var(--sp-3); }
+  .court-visual { min-height: 160px; }
+  .player-slot { min-height: 56px; }
+  .team-zone { padding: var(--sp-2); gap: var(--sp-1); }
+  .slot-avatar { width: 24px; height: 24px; font-size: 0.65rem; }
+  .slot-name { font-size: 0.65rem; }
+  .slot-remove { width: 20px; height: 20px; font-size: 0.85rem; opacity: 1; }
+  .court-clear-btn { font-size: 0.7rem; padding: var(--sp-1) var(--sp-2); }
+  .auto-suggest-btn { width: 100%; text-align: center; }
+}
 </style>

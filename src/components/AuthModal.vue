@@ -446,4 +446,12 @@ function validateUsername() {
   height: 1px;
   background: var(--c-border);
 }
+
+@media (max-width: 640px) {
+  .auth-modal { max-width: 100%; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .auth-form { padding: var(--sp-4); }
+  .auth-form h3 { font-size: 1rem; }
+  .form-group input { padding: var(--sp-4); font-size: 16px; }
+  .auth-divider { margin: var(--sp-3) calc(-1 * var(--sp-4)); }
+}
 </style>

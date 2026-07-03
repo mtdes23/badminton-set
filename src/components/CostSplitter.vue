@@ -386,4 +386,19 @@ function openSettings() {
   align-items: center;
   gap: var(--sp-4);
 }
+
+@media (max-width: 640px) {
+  .cs-header { flex-direction: column; gap: var(--sp-2); }
+  .cs-total-box { text-align: left; }
+  .cs-total-amount { font-size: 1.4rem; }
+  .expense-row { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+  .expense-amount { font-size: 0.85rem; }
+  .form-row { flex-direction: column; }
+  .form-row input { min-width: 0; }
+  .qr-display-wrap { flex-direction: column; align-items: stretch; }
+  .qr-image-box { justify-content: center; }
+  .qr-image { width: 150px; height: 150px; }
+  .acc-num { font-size: 1.1rem; }
+  .summary-value-hero { font-size: 1.6rem; }
+}
 </style>

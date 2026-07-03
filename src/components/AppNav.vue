@@ -369,12 +369,30 @@ const navLinks = [
 }
 
 @media (max-width: 768px) {
-  .app-nav { padding: 0 var(--sp-4); gap: var(--sp-4); }
-  .nav-links { gap: var(--sp-1); }
-  .nav-link { padding: var(--sp-2); }
+  .app-nav { padding: 0 var(--sp-3); gap: var(--sp-2); height: 52px; }
+  .nav-links { gap: 0; }
+  .nav-link { padding: var(--sp-2) var(--sp-2); font-size: 0.8rem; }
+  .nav-link-icon { font-size: 1.1rem; }
   .nav-link-text { display: none; }
   .nav-sub { display: none; }
-  .btn-text { display: none; }
-  .nav-session-badge { max-width: 100px; }
+  .nav-shuttle { font-size: 1.2rem; }
+  .nav-title { font-size: 0.95rem; }
+  .nav-session-badge { max-width: 80px; padding: var(--sp-1) var(--sp-2); font-size: 0.7rem; }
+  .nav-badge-text { font-size: 0.7rem; }
+
+  .btn-login { padding: var(--sp-2); min-width: 40px; }
+  .btn-login .btn-text { display: none; }
+
+  .user-dropdown {
+    position: fixed;
+    top: 52px;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+    border-top: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  }
 }
 </style>

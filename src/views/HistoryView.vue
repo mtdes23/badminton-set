@@ -160,6 +160,12 @@ function perPersonCost(s) {
 }
 
 @media (max-width: 640px) {
-  .history-view { padding: var(--sp-4); }
+  .history-view { padding: var(--sp-4); gap: var(--sp-4); }
+  .history-header { flex-direction: column; gap: var(--sp-1); }
+  .hc-header { flex-direction: column; gap: var(--sp-2); }
+  .hc-stats { gap: var(--sp-4); flex-wrap: wrap; }
+  .hc-stat-num { font-size: 1.3rem; }
+  .expense-pills { gap: var(--sp-1); }
+  .expense-pill { font-size: 0.7rem; padding: 2px 8px; }
 }
 </style>

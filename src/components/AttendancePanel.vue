@@ -306,4 +306,18 @@ async function addGuest() {
 }
 .guest-form input { flex: 1; min-width: 120px; }
 .guest-form select { width: 110px; }
+
+@media (max-width: 640px) {
+  .panel-header { flex-direction: column; gap: var(--sp-2); }
+  .panel-stats { width: 100%; justify-content: space-between; }
+  .stat-chip { min-width: 0; flex: 1; padding: var(--sp-2); }
+  .stat-chip-num { font-size: 1.1rem; }
+  .attendee-row { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+  .ar-avatar { width: 30px; height: 30px; font-size: 0.65rem; }
+  .ar-name { font-size: 0.8rem; }
+  .ar-btn { width: 36px; height: 36px; font-size: 1rem; }
+  .guest-form { flex-direction: column; }
+  .guest-form input { min-width: 0; }
+  .guest-form select { width: 100%; }
+}
 </style>

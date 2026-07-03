@@ -429,3 +429,22 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- Mobile Global --- */
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+
+  .modal-mask { padding: 0; align-items: flex-end; }
+  .modal-box {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    padding: var(--sp-6);
+  }
+
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 36px; }
+  .btn-icon { width: 44px; height: 44px; }
+
+  input, select, textarea { font-size: 16px; }
+}

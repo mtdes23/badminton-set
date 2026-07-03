@@ -594,8 +594,17 @@ watch(showQR, async (newVal) => {
 
 @media (max-width: 640px) {
   .live-view { padding: var(--sp-4); gap: var(--sp-4); }
+  .live-header { flex-direction: column; gap: var(--sp-3); padding-bottom: var(--sp-3); }
+  .live-header-left { gap: var(--sp-2); }
+  .live-title { font-size: 1.3rem; }
+  .live-header-stats { gap: var(--sp-3); flex-wrap: wrap; }
   .mini-stat { align-items: flex-start; }
-  .live-header-stats { gap: var(--sp-4); }
+  .mini-stat-num { font-size: 1.2rem; }
+  .live-tabs { gap: 0; padding-bottom: 0; }
+  .live-tab { padding: var(--sp-2) var(--sp-3); font-size: 0.78rem; }
+  .tab-badge { font-size: 0.6rem; padding: 1px 4px; }
   .share-actions { grid-template-columns: 1fr; }
+  .share-url-box { flex-direction: column; }
+  .qr-content { padding: var(--sp-4); }
 }
 </style>

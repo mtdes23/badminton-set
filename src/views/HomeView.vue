@@ -555,8 +555,22 @@ const FEATURES = [
 }
 
 @media (max-width: 640px) {
-  .home-view { padding: 0 var(--sp-4) var(--sp-12); gap: var(--sp-10); }
-  .hero { padding: var(--sp-10) 0 var(--sp-8); }
+  .home-view { padding: 0 var(--sp-4) var(--sp-12); gap: var(--sp-8); }
+  .hero { padding: var(--sp-8) 0 var(--sp-6); }
+  .hero-desc { font-size: 0.9rem; }
+  .hero-ctas { flex-direction: column; }
+  .hero-ctas .btn { width: 100%; }
+  .hero-shuttle { font-size: clamp(4rem, 12vw, 8rem); right: -10px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .as-stats { gap: var(--sp-4); }
+  .stat-number { font-size: 2rem; }
+  .as-actions { flex-direction: column; }
+  .as-actions .btn { width: 100%; }
   .form-row-2 { grid-template-columns: 1fr; }
+  .player-mgr-modal { max-width: 100%; }
+  .add-player-form .form-row { flex-direction: column; }
+  .add-player-form input { min-width: 0; }
+  .add-player-form select { width: 100%; }
+  .pm-skill-select { width: 80px; }
 }
 </style>
