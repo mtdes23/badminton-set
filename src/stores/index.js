@@ -43,9 +43,9 @@ function buildCourts(count) {
   }))
 }
 
-/** Deep-clone via structuredClone (faster than JSON round-trip) */
+/** Deep-clone via JSON so nested arrays/objects are safe to mutate */
 function clone(obj) {
-  return structuredClone(obj)
+  return JSON.parse(JSON.stringify(obj))
 }
 
 // ─── Player Store ─────────────────────────────────────────────────────────────
